@@ -1,206 +1,206 @@
 # LED Matrix Panel
 
-Clock, nearby aircraft and ČHMÚ precipitation radar on a
-**Waveshare RGB LED matrix 96×48, P2.5 (HUB75)** driven by the
-**LaskaKit ESP32-S3-DEVKit**. Everything is configured from a web page
-and stored in the ESP32's flash.
+Hodiny, letadla v okolí a srážkový radar ČHMÚ na
+**RGB LED matici Waveshare 96×48, P2.5 (HUB75)** řízené deskou
+**LaskaKit ESP32-S3-DEVKit**. Vše se nastavuje přes webovou stránku
+a ukládá do flash paměti ESP32.
 
-## What it shows
+## Co zobrazuje
 
-**Screens:** clock (analog with anti-aliased hands or digital), forecast (now · today ·
-tomorrow), aircraft (rotated icon, callsign, type, speed, altitude, distance, "+N" for more
-aircraft in range), radar (animated map with a small clock).
+**Obrazovky:** hodiny (ručičkové s vyhlazenými ručičkami nebo digitální), předpověď (teď · dnes ·
+zítra), letadlo (natočená ikona, volací znak, typ, rychlost, výška, vzdálenost, „+N“ pro další
+letadla v okruhu), radar (animovaná mapa s malými hodinami).
 
-**Screen modes** (chosen on the web, remembered over a restart):
+**Režimy obrazovek** (volí se na webu, pamatují si je i po restartu):
 
-| Mode | Behaviour |
-|------|-----------|
-| Automatic | clock, every 50 s the forecast for 10 s (adjustable); rain within the radius → radar instead; aircraft *at once* (has priority), *now and then* (e.g. 15 s every 60 s while one is around) or *never* |
-| Rotation | the chosen screens in turn, N seconds each; aircraft skipped when none is around, radar skipped without rain nearby (unless "radar also without rain") |
-| Fixed | clock, forecast, aircraft or radar only |
+| Režim | Chování |
+|-------|---------|
+| Automatický | hodiny, každých 50 s na 10 s předpověď (nastavitelné); déšť v okruhu → místo nich radar; letadlo *ihned* (má přednost), *občas* (např. 15 s každých 60 s, dokud je v okolí) nebo *nikdy* |
+| Střídání | vybrané obrazovky postupně, každá N sekund; letadlo se přeskočí, když žádné neletí, radar se přeskočí, když v okolí neprší (pokud není zapnuto „radar i bez deště“) |
+| Pevný | jen hodiny, předpověď, letadlo nebo radar |
 
-Aircraft: always the nearest one; with a viewing direction set, an aircraft in that sector
-(direction ± width, own range) is shown even beyond the radius and has priority.
-Night (optional): dimmed, clock only, or display off (off applies in every mode).
+Letadlo: vždy to nejbližší. Při nastaveném směru výhledu se letadlo v této výseči
+(směr ± šířka, vlastní dosah) zobrazí i za hranicí okruhu a má přednost.
+Noc (volitelně): ztlumení, jen hodiny, nebo vypnutý displej (vypnutí platí ve všech režimech).
 
-On the radar map, cities are blue 5-LED crosses (Praha, Plzeň, Liberec, Ústí n. L., Hradec Králové,
-Jihlava, České Budějovice, Brno, Olomouc, Ostrava). Your position is a green LED; when it falls
-on a city (or one pixel next to it), the cross has a green centre and blue arms.
+Na mapě radaru jsou města modré křížky z 5 LED (Praha, Plzeň, Liberec, Ústí n. L., Hradec Králové,
+Jihlava, České Budějovice, Brno, Olomouc, Ostrava). Vaše poloha je zelená LED. Když padne
+na město (nebo o jeden pixel vedle), má křížek zelený střed a modrá ramena.
 
-The radar uses the plain MAX Z composite (`png`, not `png_masked`).
+Radar používá obyčejný kompozit MAX Z (`png`, ne `png_masked`).
 
-## First start
+## První spuštění
 
-1. The panel opens an open WiFi network **`LED-Matrix-XXXX`** and shows a QR code to join it.
-2. Join it with a phone – the settings page opens by itself (or go to `http://192.168.4.1`).
-3. On the **WiFi** tab choose your home network and enter the password.
-4. The set-up network closes, the panel connects to the home WiFi and shows its
-   address for 10 s (on every start), e.g. `192.168.1.39` and `ledmatrix.local`.
-   Then the clock appears. Your phone falls back to its usual network.
+1. Panel vytvoří otevřenou WiFi síť **`LED-Matrix-XXXX`** a ukáže QR kód pro připojení.
+2. Připojte se k ní telefonem, stránka s nastavením se otevře sama (nebo zadejte `http://192.168.4.1`).
+3. Na záložce **WiFi** vyberte domácí síť a zadejte heslo.
+4. Nastavovací síť se zavře, panel se připojí k domácí WiFi a na 10 s ukáže svou
+   adresu (při každém startu), např. `192.168.1.39` a `ledmatrix.local`.
+   Pak se objeví hodiny. Telefon se vrátí ke své obvyklé síti.
 
-If the home WiFi cannot be reached within 20 s (wrong password, router off), the set-up
-network comes back. With a stored network it closes every 5 minutes for one more try,
-but only while no phone is connected to it.
+Pokud se k domácí WiFi nepodaří připojit do 20 s (špatné heslo, vypnutý router), nastavovací
+síť se vrátí. S uloženou sítí se každých 5 minut zavře a zkusí to znovu,
+ale jen když k ní není připojený žádný telefon.
 
-The radio is always either a station or an access point, never both – in the mixed
-AP+STA mode the station searches other channels and phones on the set-up network
-keep losing the connection.
+Rádio je vždy buď stanice, nebo přístupový bod, nikdy obojí. Ve smíšeném režimu
+AP+STA stanice prohledává jiné kanály a telefony v nastavovací síti
+neustále ztrácejí spojení.
 
-## Web interface (Czech)
+## Webové rozhraní (česky)
 
-| Tab | Settings |
-|-----|----------|
-| Stav | time, current screen, aircraft, radar, weather, memory; screen mode (auto / rotation / clock / aircraft / radar / forecast) |
-| WiFi | network scan, connect, forget |
-| Poloha | search a town (Open-Meteo geocoding, runs in the browser), latitude / longitude |
-| Letadla | on/off, radius, minimum altitude, callsign only, poll interval, minimum show time; viewing direction (8 directions), ± width, own range, with a small map of the sector |
-| Radar | on/off, rain radius, dBZ threshold, frames, animation speed, hold, legend, cities, map background |
-| Hodiny a počasí | analog / digital, seconds, date; colours of hands, seconds, digits, dial marks, weekday + month, day + year; forecast on/off and timing |
-| Displej | automatic mode (aircraft at once / now and then / never), rotation (screens, interval, radar without rain); brightness day / night, night by time or sunset–sunrise, dim or off, clock only |
-| Systém | host name, time zone, backup / restore (JSON), firmware update, restart, factory reset |
+| Záložka | Nastavení |
+|---------|-----------|
+| Stav | čas, aktuální obrazovka, letadlo, radar, počasí, paměť; režim obrazovek (automatický / střídání / hodiny / letadlo / radar / předpověď) |
+| WiFi | vyhledání sítí, připojení, zapomenutí |
+| Poloha | vyhledání obce (geokódování Open-Meteo, běží v prohlížeči), zeměpisná šířka / délka |
+| Letadla | zapnuto/vypnuto, okruh, minimální výška, jen s volacím znakem, interval dotazů, minimální doba zobrazení; směr výhledu (8 směrů), ± šířka, vlastní dosah, s malou mapkou výseče |
+| Radar | zapnuto/vypnuto, okruh deště, práh dBZ, počet snímků, rychlost animace, zdržení posledního snímku, legenda, města, podklad mapy |
+| Hodiny a počasí | ručičkové / digitální, vteřiny, datum; barvy ručiček, vteřinovky, číslic, značek ciferníku, dne v týdnu + měsíce, dne + roku; předpověď zapnuto/vypnuto a časování |
+| Displej | automatický režim (letadlo ihned / občas / nikdy), střídání (obrazovky, interval, radar bez deště); jas ve dne / v noci, noc podle času nebo od západu do východu slunce, ztlumit nebo vypnout, jen hodiny |
+| Systém | název zařízení, časové pásmo, záloha / obnova (JSON), aktualizace firmwaru, restart, tovární nastavení |
 
-Settings are kept in NVS (Preferences) – they survive firmware updates. The `DEFAULT_*`
-values in `config.h` are used only on the very first start or after a factory reset.
+Nastavení se ukládá do NVS (Preferences) a přežije aktualizaci firmwaru. Hodnoty `DEFAULT_*`
+v `config.h` se použijí jen při úplně prvním startu nebo po továrním nastavení.
 
-JSON API (used by the page, handy for scripts):
+JSON API (používá ho stránka, hodí se pro skripty):
 `GET /api/status`, `GET|POST /api/config`, `GET /api/scan`, `POST /api/wifi`,
 `POST /api/wifi/forget`, `POST /api/mode`, `GET /api/export`, `POST /api/import`,
 `POST /api/reboot`, `POST /api/reset`, `POST /update` (firmware .bin).
 
 ## Hardware
 
-| Part | Note |
-|------|------|
-| LaskaKit ESP32-S3-DEVKit | with or without PSRAM |
-| Waveshare RGB-Matrix-P2.5-96x48-F | HUB75, 1/24 scan, V2 = SM5368 row driver |
-| 5 V power supply, 4 A or more | the panel is **not** powered from the ESP32 |
+| Díl | Poznámka |
+|-----|----------|
+| LaskaKit ESP32-S3-DEVKit | s PSRAM i bez ní |
+| Waveshare RGB-Matrix-P2.5-96x48-F | HUB75, skenování 1/24, V2 = řádkový budič SM5368 |
+| Zdroj 5 V, 4 A nebo víc | panel se **ne**napájí z ESP32 |
 
-## Wiring (14 GPIO)
+## Zapojení (14 GPIO)
 
-On the 96x48-F **V2** panel rows are driven by an SM5368 shift register through A, B, C only;
-D and E are not used by the panel (wiring them does no harm).
+Na panelu 96x48-F **V2** řídí řádky posuvný registr SM5368 jen přes A, B, C.
+Piny D a E panel nepoužívá (jejich zapojení ničemu nevadí).
 
-| HUB75 pin | Signal | ESP32-S3 GPIO | DEVKit header |
+| Pin HUB75 | Signál | GPIO ESP32-S3 | Lišta DEVKitu |
 |-----------|--------|---------------|---------------|
-| 1  | R1  | 4  | left  |
-| 2  | G1  | 5  | left  |
-| 3  | B1  | 6  | left  |
-| 5  | R2  | 7  | left  |
-| 6  | G2  | 15 | left  |
-| 7  | B2  | 16 | left  |
-| 9  | A   | 17 | left  |
-| 10 | B   | 18 | left  |
-| 11 | C   | 8  | left  |
-| 12 | D   | 41 | right |
-| 8  | E   | 21 | right |
-| 14 | LAT | 40 | right |
-| 15 | OE  | 39 | right |
-| 13 | CLK | 38 | right |
-| 4, 16 | GND | GND | both |
+| 1  | R1  | 4  | levá  |
+| 2  | G1  | 5  | levá  |
+| 3  | B1  | 6  | levá  |
+| 5  | R2  | 7  | levá  |
+| 6  | G2  | 15 | levá  |
+| 7  | B2  | 16 | levá  |
+| 9  | A   | 17 | levá  |
+| 10 | B   | 18 | levá  |
+| 11 | C   | 8  | levá  |
+| 12 | D   | 41 | pravá |
+| 8  | E   | 21 | pravá |
+| 14 | LAT | 40 | pravá |
+| 15 | OE  | 39 | pravá |
+| 13 | CLK | 38 | pravá |
+| 4, 16 | GND | GND | obě |
 
-**Always connect GND of the ESP32 to GND of the panel power supply.**
-Pins can be changed in `config.h`.
+**GND ESP32 vždy propojte s GND zdroje panelu.**
+Piny jde změnit v `config.h`.
 
-Avoided on purpose: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
-43/44 (UART), 2/42 (µŠup I²C), 47 (µŠup power), 9 (battery ADC), 35–37 (octal PSRAM).
+Záměrně vynechané: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
+43/44 (UART), 2/42 (µŠup I²C), 47 (napájení µŠup), 9 (ADC baterie), 35 až 37 (octal PSRAM).
 
 ## Software
 
-1. Arduino IDE 2.x + **esp32 by Espressif Systems** board package (3.x)
+1. Arduino IDE 2.x + balíček desek **esp32 by Espressif Systems** (3.x)
 2. Library Manager:
-   - **ESP32 HUB75 LED MATRIX PANEL DMA Display** (by mrcodetastic, **v3.1.0 or newer** – SM5368 support),
-     Adafruit GFX is installed as a dependency
-   - **PNGdec** (by Larry Bank) – radar images
-   - **ArduinoJson** (by Benoit Blanchon, v7) – aircraft data, web API
-3. Board **ESP32S3 Dev Module**, *Tools*:
-   - **PSRAM** – match the module: *OPI* (…R8), *QSPI* (…R2), *Disabled* when there is none
+   - **ESP32 HUB75 LED MATRIX PANEL DMA Display** (od mrcodetastic, **v3.1.0 nebo novější**, podpora SM5368),
+     Adafruit GFX se nainstaluje jako závislost
+   - **PNGdec** (od Larry Bank): radarové snímky
+   - **ArduinoJson** (od Benoit Blanchon, v7): data o letadlech, webové API
+3. Deska **ESP32S3 Dev Module**, *Tools*:
+   - **PSRAM** podle modulu: *OPI* (…R8), *QSPI* (…R2), *Disabled*, když žádnou nemá
    - **Flash Size: 16MB (128Mb)**
-   - **Partition Scheme: 16M Flash (3MB APP/9.9MB FATFS)** – two app slots, so the web update works
-4. No `build_opt.h` – the libraries run with their default settings. If an older version
-   of this project left a `build_opt.h` in the sketch folder, delete it **and** the build cache
-   (folder `arduino/sketches` in the system temp folder, Windows `%LOCALAPPDATA%\Temp`).
-5. Upload through the USB-C connector labelled **UART**
-   (for the Serial Monitor on that port keep *USB CDC On Boot: Disabled*)
+   - **Partition Scheme: 16M Flash (3MB APP/9.9MB FATFS)**: dva sloty pro aplikaci, aby fungovala aktualizace přes web
+4. Žádný `build_opt.h`, knihovny běží s výchozím nastavením. Pokud ve složce sketche
+   zůstal `build_opt.h` ze starší verze projektu, smažte ho **i** cache překladu
+   (složka `arduino/sketches` v systémové složce temp, ve Windows `%LOCALAPPDATA%\Temp`).
+5. Nahrávejte přes USB-C konektor označený **UART**
+   (kvůli Serial Monitoru na tomto portu nechte *USB CDC On Boot: Disabled*)
 
-Later updates can go through the web page: *Sketch → Export Compiled Binary* in Arduino IDE,
-then *Systém → Aktualizace firmwaru*.
+Další aktualizace mohou jít přes webovou stránku: v Arduino IDE *Sketch → Export Compiled Binary*,
+pak *Systém → Aktualizace firmwaru*.
 
-## Project structure
+## Struktura projektu
 
 ```
-LED_Matrix_Panel.ino  setup() / loop() only
-config.h          pins, panel type, defaults, limits, DEBUG switches
-settings.h/.cpp   user settings in flash (NVS) + JSON
-wifi_setup.h/.cpp home WiFi, set-up access point, captive portal, mDNS
-web.h/.cpp        web server, JSON API, firmware update
-web_page.h        the settings page (HTML/CSS/JS in one string)
+LED_Matrix_Panel.ino  jen setup() / loop()
+config.h          piny, typ panelu, výchozí hodnoty, limity, přepínače DEBUG
+settings.h/.cpp   uživatelské nastavení ve flash (NVS) + JSON
+wifi_setup.h/.cpp domácí WiFi, nastavovací přístupový bod, captive portal, mDNS
+web.h/.cpp        webový server, JSON API, aktualizace firmwaru
+web_page.h        stránka s nastavením (HTML/CSS/JS v jednom řetězci)
 
-station.h/.cpp    which screen to show, night mode, brightness
-screens.h/.cpp    clock, aircraft, radar, set-up and IP screens
-sky_data.h/.cpp   data shared by network task and display (mutex)
-fetcher.h/.cpp    background network task on core 0
-net.h/.cpp        HTTPS helpers (streaming, growing buffers)
-time_sync.h/.cpp  clock from the HTTP "Date" header
-sun.h/.cpp        sunrise / sunset (NOAA)
-adsb.h/.cpp       nearest aircraft from adsb.fi + count in range
-chmu.h/.cpp       ČHMÚ radar: directory index, PNG download, decoding
-png_stream.h      feeds PNGdec straight from the HTTPS stream (sliding window)
-forecast.h/.cpp   Open-Meteo: weather now, today, tomorrow
-weather_icons.h/.cpp  16x16 weather icons drawn with GFX primitives
-radar_palette.h   ČHMÚ colour scale, 4-bit radar grid (2304 B / frame)
-radar_map.h/.cpp  Czech map 96x48 (Natural Earth 1:10m, Web Mercator) + projection
-map_view.h/.cpp   map layers: land, border, cities, home, legend, rain
-qrcode.h/.c       QR code generator (ricmoo/QRCode, MIT)
+station.h/.cpp    která obrazovka se ukáže, noční režim, jas
+screens.h/.cpp    hodiny, letadlo, radar, nastavovací obrazovka a obrazovka s IP
+sky_data.h/.cpp   data sdílená síťovou úlohou a displejem (mutex)
+fetcher.h/.cpp    síťová úloha na pozadí na jádře 0
+net.h/.cpp        pomocné funkce pro HTTPS (streamování, rostoucí buffery)
+time_sync.h/.cpp  čas z HTTP hlavičky „Date“
+sun.h/.cpp        východ / západ slunce (NOAA)
+adsb.h/.cpp       nejbližší letadlo z adsb.fi + počet v okruhu
+chmu.h/.cpp       radar ČHMÚ: výpis adresáře, stažení PNG, dekódování
+png_stream.h      plní PNGdec přímo z HTTPS proudu (posuvné okno)
+forecast.h/.cpp   Open-Meteo: počasí teď, dnes, zítra
+weather_icons.h/.cpp  ikony počasí 16x16 kreslené primitivy GFX
+radar_palette.h   barevná stupnice ČHMÚ, 4bitová mřížka radaru (2304 B / snímek)
+radar_map.h/.cpp  mapa Česka 96x48 (Natural Earth 1:10m, Web Mercator) + projekce
+map_view.h/.cpp   vrstvy mapy: země, hranice, města, domov, legenda, déšť
+qrcode.h/.c       generátor QR kódu (ricmoo/QRCode, MIT)
 
-display.h/.cpp    panel init, drawing canvas, changed-pixel transfer, brightness
-colors.h          RGB565 helpers
-debug.h           DEBUG_LOG() macros
-console.h/.cpp    serial test commands
+display.h/.cpp    inicializace panelu, kreslicí plátno, přenos změněných pixelů, jas
+colors.h          pomocné funkce pro RGB565
+debug.h           makra DEBUG_LOG()
+console.h/.cpp    testovací příkazy přes sériovou linku
 ```
 
-How it works:
-- **Main loop** (core 1): WiFi state machine, web server, screen choice and drawing. A screen
-  is redrawn only when its content changes (clock tick, radar frame, new data); it is drawn
-  into a canvas in RAM and only the pixels that differ are written to the panel's DMA buffer.
-- **Network task** (core 0): asks adsb.fi every few seconds, ČHMÚ every 5 minutes and Open-Meteo every 15 minutes,
-  publishes results into `SkyData`. Downloads never block the display or the web page.
-- **Radar**: the directory listing is scanned as a stream for the newest file names,
-  each PNG is decoded line by line *while it downloads* (a 4 kB sliding window,
-  no buffer for the whole file) straight into a 96×48 grid; every
-  panel pixel keeps the strongest echo of the area it covers. The newest frame is
-  also checked for rain within the radius.
-- **Time** comes from the `Date` header of those responses (no NTP). With aircraft,
-  radar and forecast all off, a tiny request is made every 30 minutes just for the time.
+Jak to funguje:
+- **Hlavní smyčka** (jádro 1): stavový automat WiFi, webový server, výběr obrazovky a kreslení. Obrazovka
+  se překreslí, jen když se změní obsah (tik hodin, snímek radaru, nová data). Kreslí se
+  do plátna v RAM a do DMA bufferu panelu se zapíšou jen pixely, které se liší.
+- **Síťová úloha** (jádro 0): ptá se adsb.fi každých pár sekund, ČHMÚ každých 5 minut a Open-Meteo každých 15 minut,
+  výsledky publikuje do `SkyData`. Stahování nikdy neblokuje displej ani webovou stránku.
+- **Radar**: výpis adresáře se prochází jako proud a hledají se v něm názvy nejnovějších souborů.
+  Každé PNG se dekóduje po řádcích *už během stahování* (posuvné okno 4 kB,
+  žádný buffer pro celý soubor) rovnou do mřížky 96×48. Každý
+  pixel panelu si ponechá nejsilnější ozvěnu z oblasti, kterou pokrývá. Na nejnovějším snímku
+  se navíc kontroluje déšť v okruhu.
+- **Čas** se bere z hlavičky `Date` těchto odpovědí (bez NTP). Když jsou letadla,
+  radar i předpověď vypnuté, kvůli času se každých 30 minut pošle malý dotaz.
 
-## Debug
+## Ladění
 
 ```cpp
 #define DEBUG_ENABLED  1   // 0 = no serial output, no debug code in firmware
 #define DEBUG_CONSOLE  1   // single-key commands in the Serial Monitor
 ```
 
-Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download radar now,
-`+`/`-` brightness, `i` info (time, WiFi, aircraft, radar, memory), `h` help.
+Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout radar hned,
+`+`/`-` jas, `i` informace (čas, WiFi, letadlo, radar, paměť), `h` nápověda.
 
-## Troubleshooting
+## Řešení problémů
 
-| Symptom | Fix |
-|---------|-----|
-| Image shifted by 1 px, text unreadable | toggle `PANEL_CLK_PHASE` (Waveshare = `false`) |
-| The start-up bars R, G, B show other colours | `PANEL_SWAP_RB` in `config.h` swaps red and blue (Waveshare 96x48-F V2 = `1`) |
-| Wrong colours (white clock hands look blue, dark colours missing) | a stale `build_opt.h` from an older version – delete it and the build cache, see *Software* step 4 |
-| Whole rows lit / stripes | `PANEL_LINE_DECODER` (96x48-F V2 = `SM5368`, V1 = `TYPE138`) |
-| Boot log "PSRAM chip is not connected" | set *Tools → PSRAM* to match the module (or Disabled) |
-| Neighbouring LEDs glow / flicker | check the panel GND, a short ribbon cable and the 5 V supply; `PANEL_I2S_SPEED HZ_8M` in `config.h` |
-| `HTTP -1 connection refused` for every request | usually too little RAM for TLS – the log line shows the largest free block (TLS needs two ~17 kB blocks); fewer radar frames |
-| Web page not reachable | check the address shown after start; `http://ledmatrix.local` needs mDNS (works on most phones and PCs) |
-| ESP32 resets at high brightness | stronger 5 V supply, lower brightness in the web interface |
+| Příznak | Řešení |
+|---------|--------|
+| Obraz posunutý o 1 px, nečitelný text | přepněte `PANEL_CLK_PHASE` (Waveshare = `false`) |
+| Úvodní pruhy R, G, B mají jiné barvy | `PANEL_SWAP_RB` v `config.h` prohodí červenou a modrou (Waveshare 96x48-F V2 = `1`) |
+| Špatné barvy (bílé ručičky vypadají modře, chybí tmavé barvy) | zapomenutý `build_opt.h` ze starší verze, smažte ho i cache překladu, viz *Software* krok 4 |
+| Svítí celé řádky / pruhy | `PANEL_LINE_DECODER` (96x48-F V2 = `SM5368`, V1 = `TYPE138`) |
+| V logu při startu „PSRAM chip is not connected“ | nastavte *Tools → PSRAM* podle modulu (nebo Disabled) |
+| Sousední LED pobliká / svítí | zkontrolujte GND panelu, krátký plochý kabel a zdroj 5 V; `PANEL_I2S_SPEED HZ_8M` v `config.h` |
+| `HTTP -1 connection refused` u každého dotazu | obvykle málo RAM pro TLS; řádek v logu ukazuje největší volný blok (TLS potřebuje dva bloky po ~17 kB); méně snímků radaru |
+| Webová stránka nejde otevřít | zkontrolujte adresu zobrazenou po startu; `http://ledmatrix.local` potřebuje mDNS (funguje na většině telefonů a počítačů) |
+| ESP32 se restartuje při vysokém jasu | silnější zdroj 5 V, nižší jas ve webovém rozhraní |
 
-## Data and licences
+## Data a licence
 
-- Aircraft: [adsb.fi](https://adsb.fi) open data (non-commercial use)
-- Radar: [ČHMÚ open data](https://opendata.chmi.cz) (MAX Z composite, `png`)
-- Forecast: [Open-Meteo](https://open-meteo.com) (CC BY 4.0, free for non-commercial use)
-- Map: [Natural Earth](https://www.naturalearthdata.com) (public domain)
-- Town search: [Open-Meteo geocoding](https://open-meteo.com) (in the browser)
-- QR code: ricmoo/QRCode (MIT)
+- Letadla: otevřená data [adsb.fi](https://adsb.fi) (nekomerční použití)
+- Radar: [otevřená data ČHMÚ](https://opendata.chmi.cz) (kompozit MAX Z, `png`)
+- Předpověď: [Open-Meteo](https://open-meteo.com) (CC BY 4.0, zdarma pro nekomerční použití)
+- Mapa: [Natural Earth](https://www.naturalearthdata.com) (public domain)
+- Vyhledání obce: [geokódování Open-Meteo](https://open-meteo.com) (v prohlížeči)
+- QR kód: ricmoo/QRCode (MIT)
