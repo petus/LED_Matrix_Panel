@@ -1,6 +1,10 @@
 /**
  * @file    web_page.h
- * @brief   The settings web page (HTML + CSS + JS in one string, Czech).
+ * @brief   The settings web page (HTML + CSS + JS in one string).
+ *
+ * Written in Czech; English comes from the EN table in the script: every
+ * text node (and placeholder) whose text is a key there is replaced when the
+ * language is English. Texts built in JS use L('czech','english').
  *
  * Stored in flash and sent as is. The page talks to the panel only through
  * the JSON API in web.cpp, so it can be edited without touching C++.
@@ -64,7 +68,7 @@ footer{max-width:760px;margin:0 auto;padding:8px 16px 28px;text-align:center;col
   <div class="btns"><button class="btn" onclick="wifiConnect()">Připojit</button><button class="btn sec" onclick="scan()">Hledat sítě</button></div>
   <div class="list" id="nets"></div></div>
  <div class="card"><h2>Zapomenout síť</h2><p class="mut">Panel zapomene domácí WiFi a znovu vytvoří vlastní síť pro nastavení.</p>
-  <button class="btn bad" onclick="if(confirm('Opravdu zapomenout WiFi?'))post('/api/wifi/forget')">Zapomenout</button></div>
+  <button class="btn bad" onclick="if(confirm(L('Opravdu zapomenout WiFi?','Really forget the WiFi?')))post('/api/wifi/forget')">Zapomenout</button></div>
 </section>
 
 <section id="s-poloha">
@@ -97,11 +101,12 @@ footer{max-width:760px;margin:0 auto;padding:8px 16px 28px;text-align:center;col
 </section>
 
 <section id="s-radar">
- <div class="card"><h2>Srážkový radar (ČHMÚ)</h2>
+ <div class="card"><h2>Srážkový radar</h2>
   <div class="row"><label>Zobrazovat radar</label><input type="checkbox" data-k="radarOn"></div>
+  <div class="row"><label>Zdroj dat<small>masked: jen srážky, které dopadnou na zem</small></label><select data-k="radarSrc" data-type="int"><option value="0">ČHMÚ</option><option value="1">ČHMÚ masked</option><option value="2">RainViewer</option></select></div>
   <div class="row"><label>Okruh srážek<small>km od polohy, 5–500</small></label><input type="number" min="5" max="500" data-k="rainRadius"></div>
   <div class="row"><label>Práh intenzity<small>dBZ – 20 slabý déšť, 40 silný, 52+ bouřka</small></label><input type="number" min="4" max="60" step="4" data-k="rainDbz"></div>
-  <div class="row"><label>Počet snímků<small>1–6, po 5 minutách</small></label><input type="number" min="1" max="6" data-k="radarFrames"></div>
+  <div class="row"><label>Počet snímků<small>1–6, ČHMÚ po 5 min, RainViewer po 10 min</small></label><input type="number" min="1" max="6" data-k="radarFrames"></div>
   <div class="row"><label>Rychlost animace<small>ms na snímek</small></label><input type="number" min="100" max="5000" step="50" data-k="animStep"></div>
   <div class="row"><label>Podržet poslední snímek<small>ms</small></label><input type="number" min="0" max="10000" step="100" data-k="animHold"></div>
   <div class="row"><label>Legenda dBZ</label><input type="checkbox" data-k="legend"></div>
@@ -159,6 +164,7 @@ footer{max-width:760px;margin:0 auto;padding:8px 16px 28px;text-align:center;col
 
 <section id="s-system">
  <div class="card"><h2>Zařízení</h2>
+  <div class="row"><label>Jazyk / Language<small>panel i tato stránka</small></label><select data-k="lang" onchange="setLang(this.value)"><option value="cs">čeština</option><option value="en">English</option></select></div>
   <div class="row"><label>Název v síti<small>adresa <span id="hn"></span>.local, po restartu</small></label><input type="text" maxlength="31" data-k="hostname"></div>
   <div class="row"><label>Časové pásmo</label><select id="tzsel"></select></div>
   <div class="row"><label>Vlastní (POSIX TZ)</label><input type="text" data-k="tz"></div>
@@ -171,23 +177,62 @@ footer{max-width:760px;margin:0 auto;padding:8px 16px 28px;text-align:center;col
   <div class="btns"><button class="btn" onclick="ota()">Nahrát</button></div></div>
  <div class="card"><h2>Restart a obnovení</h2>
   <div class="btns"><button class="btn sec" onclick="post('/api/reboot')">Restartovat</button>
-  <button class="btn bad" onclick="if(confirm('Smazat všechna nastavení včetně WiFi?'))post('/api/reset')">Tovární nastavení</button></div></div>
+  <button class="btn bad" onclick="if(confirm(L('Smazat všechna nastavení včetně WiFi?','Delete all settings including the WiFi?')))post('/api/reset')">Tovární nastavení</button></div></div>
 </section>
 
 <div class="btns" id="savebar" style="display:none"><button class="btn" onclick="save()">Uložit nastavení</button></div>
 </main>
-<footer>Vymyslel a vytvořil <a href="https://chiptron.cz" target="_blank" rel="noopener">chiptron.cz</a></footer>
+<footer><span>Vymyslel a vytvořil</span> <a href="https://chiptron.cz" target="_blank" rel="noopener">chiptron.cz</a></footer>
 <div id="toast"></div>
 
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+// English texts, keyed by the Czech text of the page
+const EN={'načítám…':'loading…','Právě teď':'Right now','Obrazovka':'Screen','Automaticky':'Automatic','Střídání':'Rotation','Hodiny':'Clock','Letadlo':'Aircraft','Předpověď':'Forecast',
+'Automaticky: hodiny a občas předpověď, při dešti v okruhu radar, letadlo podle nastavení. Střídání: vybrané obrazovky dokola. Volba se pamatuje i po restartu. Nastavení je v záložce Displej.':'Automatic: the clock and now and then the forecast, the radar when it rains nearby, aircraft as set. Rotation: the chosen screens in turn. The choice is kept over a restart. Settings are on the Display tab.',
+'Připojení':'Connection','Připojit k síti':'Connect to a network','Název sítě (SSID)':'Network name (SSID)','Heslo':'Password','Připojit':'Connect','Hledat sítě':'Scan','Zapomenout síť':'Forget the network',
+'Panel zapomene domácí WiFi a znovu vytvoří vlastní síť pro nastavení.':'The panel forgets the home WiFi and opens its own set-up network again.','Zapomenout':'Forget',
+'Kde panel je':'Where the panel is','Hledat obec':'Search a town','potřebuje internet v telefonu / počítači':'needs internet on this phone / computer','např. Brno':'e.g. Vienna','Název místa':'Place name','Zeměpisná šířka':'Latitude','Zeměpisná délka':'Longitude',
+'Poloha určuje okruh pro letadla i déšť a zelenou LED na mapě.':'The position sets the radius for aircraft and rain and the green LED on the map.',
+'Letadla (adsb.fi)':'Aircraft (adsb.fi)','Zobrazovat letadla':'Show aircraft','Okruh':'Radius','km od polohy, 1–100':'km from the position, 1–100','Minimální výška':'Minimum altitude','m, ignoruje např. letiště':'m, ignores e.g. an airport',
+'Jen letadla s volacím znakem':'Only aircraft with a callsign','Interval dotazů':'Poll interval','s, 5–300':'s, 5–300','Zobrazit aspoň':'Show at least','s, i když letadlo odletí':'s, even when the aircraft is gone',
+'Směr výhledu':'Viewing direction','Letadlo ve směru, kam se díváš (např. z okna), se ukáže i za okruhem a má přednost před ostatními.':'An aircraft in the direction you look (e.g. from a window) is shown even beyond the radius and has priority over the others.',
+'Používat směr výhledu':'Use the viewing direction','Směr':'Direction','S – sever':'N – north','SV – severovýchod':'NE – north-east','V – východ':'E – east','JV – jihovýchod':'SE – south-east','J – jih':'S – south','JZ – jihozápad':'SW – south-west','Z – západ':'W – west','SZ – severozápad':'NW – north-west',
+'Šířka výhledu':'View width','± stupňů od směru, 5–90':'± degrees from the direction, 5–90','Dosah ve výhledu':'Range in the view','km, 1–50, nezávisle na okruhu':'km, 1–50, independent of the radius',
+'Srážkový radar':'Precipitation radar','Zobrazovat radar':'Show radar','Zdroj dat':'Data source','masked: jen srážky, které dopadnou na zem':'masked: only precipitation that reaches the ground',
+'Okruh srážek':'Rain radius','km od polohy, 5–500':'km from the position, 5–500','Práh intenzity':'Intensity threshold','dBZ – 20 slabý déšť, 40 silný, 52+ bouřka':'dBZ – 20 light rain, 40 heavy, 52+ storm',
+'Počet snímků':'Frames','1–6, ČHMÚ po 5 min, RainViewer po 10 min':'1–6, ČHMÚ every 5 min, RainViewer every 10 min','Rychlost animace':'Animation speed','ms na snímek':'ms per frame','Podržet poslední snímek':'Hold the newest frame',
+'Legenda dBZ':'dBZ legend','Města na mapě':'Cities on the map','Pozadí mapy':'Map background','tmavě zelená plocha republiky':'dark green land of the country',
+'Typ':'Type','ručičkové':'analog','digitální':'digital','Vteřiny':'Seconds','Datum':'Date','Ručičky':'Hands','Číslice (digitální)':'Digits (digital)','Ciferník':'Dial','značky hodin, minutové jsou tmavší':'hour marks, minute marks are dimmer',
+'Den v týdnu a měsíc':'Weekday and month','u digitálních celý řádek s datem':'digital: the whole date line','Den a rok':'Day and year','Předpověď počasí':'Weather forecast','Zobrazovat předpověď':'Show the forecast',
+'teď · dnes · zítra, data Open-Meteo':'now · today · tomorrow, data Open-Meteo','Hodiny mezi předpověďmi':'Clock between forecasts','sekundy':'seconds','Předpověď zobrazit na':'Show the forecast for',
+'Automatický režim':'Automatic mode','Letadla':'Aircraft','když je letadlo v okruhu nebo ve výhledu':'when an aircraft is within the radius or in the view','ukázat ihned':'show at once','ukazovat občas':'now and then','nikdy':'never',
+'Občas: zobrazit na':'Now and then: show for','Občas: pauza mezi':'Now and then: pause','Jinak hodiny a předpověď (nastavení v záložce Hodiny a počasí), při dešti v okruhu radar.':'Otherwise the clock and the forecast (settings on the Clock & weather tab), the radar when it rains nearby.',
+'Střídání obrazovek':'Screen rotation','Radar i bez deště':'Radar also without rain','jinak se bez srážek v okruhu přeskočí':'otherwise skipped when it does not rain nearby','přeskočí se, když žádné neletí':'skipped when there is none',
+'sekundy na obrazovku':'seconds per screen','Jas':'Brightness','Ve dne':'Day','V noci':'At night','Noční režim':'Night mode','Kdy je noc':'When is night','podle času':'by time','od západu do východu slunce':'sunset to sunrise','Od':'From','Do':'To',
+'ztlumit':'dim','vypnout displej':'display off','V noci jen hodiny':'Clock only at night','bez letadel a radaru':'no aircraft and radar',
+'Zařízení':'Device','panel i tato stránka':'the panel and this page','Název v síti':'Host name','adresa':'address','.local, po restartu':'.local, after a restart','Časové pásmo':'Time zone','Vlastní (POSIX TZ)':'Custom (POSIX TZ)',
+'Záloha nastavení':'Settings backup','Stáhnout zálohu':'Download backup','Obnovit ze souboru':'Restore from file','Aktualizace firmwaru':'Firmware update','Soubor .bin z Arduino IDE (Sketch → Export Compiled Binary).':'A .bin file from Arduino IDE (Sketch → Export Compiled Binary).',
+'Nahrát':'Upload','Restart a obnovení':'Restart and reset','Restartovat':'Restart','Tovární nastavení':'Factory reset','Uložit nastavení':'Save settings','Vymyslel a vytvořil':'Designed and made by',
+'Stav':'Status','Poloha':'Location','Hodiny a počasí':'Clock & weather','Displej':'Display','Systém':'System',
+'Střední Evropa (Praha)':'Central Europe (Prague)','Londýn':'London','Východní Evropa':'Eastern Europe','vlastní…':'custom…'};
+let lang='cs';const L=(c,e)=>lang=='en'?e:c;
+// Swap every known text node / placeholder to the current language (the Czech
+// original is kept on the node, so switching back works too).
+function i18n(){document.documentElement.lang=lang;const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;
+ while(n=w.nextNode()){if(n._cs===undefined){const k=n.nodeValue.trim();if(!k||!(k in EN))continue;n._cs=n.nodeValue}
+  const k=n._cs.trim();n.nodeValue=lang=='en'?n._cs.replace(k,EN[k]):n._cs}
+ $$('[placeholder]').forEach(e=>{if(e._cs===undefined)e._cs=e.placeholder;e.placeholder=lang=='en'&&EN[e._cs]?EN[e._cs]:e._cs})}
+async function setLang(v){lang=v;cfg.lang=v;i18n();viewDraw();status();
+ try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lang:v})})}catch(e){}}
 const TABS=[['stav','Stav'],['wifi','WiFi'],['poloha','Poloha'],['letadla','Letadla'],['radar','Radar'],['hodiny','Hodiny a počasí'],['displej','Displej'],['system','Systém']];
 const TZ=[['CET-1CEST,M3.5.0,M10.5.0/3','Střední Evropa (Praha)'],['GMT0BST,M3.5.0/1,M10.5.0','Londýn'],['EET-2EEST,M3.5.0/3,M10.5.0/4','Východní Evropa'],['UTC0','UTC'],['','vlastní…']];
 let cfg={};
 const SCR={'clock':'hodiny','aircraft':'letadlo','radar':'radar','setup AP':'nastavení WiFi','connecting':'připojování','IP address':'IP adresa','off (night)':'vypnuto (noc)','forecast':'předpověď'};
+const SRC=['ČHMÚ','ČHMÚ masked','RainViewer'];
 function toast(t,ms){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e.t);e.t=setTimeout(()=>e.classList.remove('on'),ms||2200)}
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw new Error(await r.text()||r.status);const t=await r.text();try{return JSON.parse(t)}catch(e){return t}}
-async function post(u,b){try{await api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});toast('Hotovo')}catch(e){toast('Chyba: '+e.message)}}
+async function post(u,b){try{await api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});toast(L('Hotovo','Done'))}catch(e){toast(L('Chyba: ','Error: ')+e.message)}}
 function tab(id){$$('section').forEach(s=>s.classList.toggle('on',s.id=='s-'+id));$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t==id));
  $('#savebar').style.display=['stav','wifi'].includes(id)?'none':'flex';location.hash=id}
 $('#nav').innerHTML=TABS.map(([i,t])=>`<button data-t="${i}">${t}</button>`).join('');
@@ -196,7 +241,8 @@ function fill(){$$('[data-k]').forEach(e=>{const v=cfg[e.dataset.k];if(v===undef
  if(e.type=='checkbox')e.checked=v;else e.value=String(v)});
  bdv.textContent=cfg.brightDay;bnv.textContent=cfg.brightNight;$('#hn').textContent=cfg.hostname;
  const t=$('#tzsel');t.innerHTML=TZ.map(([v,n])=>`<option value="${v}">${n}</option>`).join('');
- t.value=TZ.some(z=>z[0]==cfg.tz)?cfg.tz:'';t.onchange=()=>{if(t.value)$('[data-k=tz]').value=t.value}}
+ t.value=TZ.some(z=>z[0]==cfg.tz)?cfg.tz:'';t.onchange=()=>{if(t.value)$('[data-k=tz]').value=t.value};
+ lang=cfg.lang=='en'?'en':'cs';i18n()}
 function collect(){const o={};$$('[data-k]').forEach(e=>{const k=e.dataset.k;let v;
  if(e.type=='checkbox')v=e.checked;else if(e.dataset.type=='bool')v=e.value=='true';else if(e.dataset.type=='int'||e.type=='range')v=parseInt(e.value);
  else if(e.type=='number')v=e.step&&e.step.includes('.')?parseFloat(e.value):parseInt(e.value);else v=e.value;
@@ -210,41 +256,41 @@ function viewDraw(){const q=k=>$(`[data-k=${k}]`),R=90;
  const [x1,y1]=pt(dir-half,vr),[x2,y2]=pt(dir+half,vr),large=2*half>180?1:0;
  let s=`<circle r="${rr}" fill="none" stroke="currentColor" stroke-opacity=".4"/>`;
  if(on)s+=`<path d="M0 0L${x1} ${y1}A${vr} ${vr} 0 ${large} 1 ${x2} ${y2}Z" fill="#3b82f6" fill-opacity=".35" stroke="#3b82f6"/>`;
- s+=`<circle r="3" fill="#22c55e"/><text y="-96" text-anchor="middle" font-size="14" fill="currentColor">S</text><text x="100" y="5" text-anchor="middle" font-size="14" fill="currentColor">V</text><text y="108" text-anchor="middle" font-size="14" fill="currentColor">J</text><text x="-100" y="5" text-anchor="middle" font-size="14" fill="currentColor">Z</text>`;
+ s+=`<circle r="3" fill="#22c55e"/><text y="-96" text-anchor="middle" font-size="14" fill="currentColor">${L('S','N')}</text><text x="100" y="5" text-anchor="middle" font-size="14" fill="currentColor">${L('V','E')}</text><text y="108" text-anchor="middle" font-size="14" fill="currentColor">${L('J','S')}</text><text x="-100" y="5" text-anchor="middle" font-size="14" fill="currentColor">${L('Z','W')}</text>`;
  s+=`<text x="${(rr*0.72).toFixed(0)}" y="${(rr*0.72+12).toFixed(0)}" font-size="11" fill="currentColor" fill-opacity=".6">${rad} km</text>`;
  if(on)s+=`<text x="${pt(dir,vr+12)[0]}" y="${+pt(dir,vr+12)[1]+4}" text-anchor="middle" font-size="11" fill="#3b82f6">${rng} km</text>`;
  $('#viewSvg').innerHTML=s}
 async function load(){cfg=await api('/api/config');fill();viewDraw()}
-async function save(){try{cfg=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});fill();viewDraw();toast('Uloženo')}catch(e){toast('Chyba: '+e.message)}}
+async function save(){try{cfg=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});fill();viewDraw();toast(L('Uloženo','Saved'))}catch(e){toast(L('Chyba: ','Error: ')+e.message)}}
 const kv=(el,rows)=>el.innerHTML=rows.map(([k,v])=>`<b>${k}</b><span>${v}</span>`).join('');
 async function status(){try{const s=await api('/api/status');
- $('#sub').textContent=`${s.time||'--:--'} · ${s.wifi.connected?s.wifi.ip:'bez WiFi'} · ${s.fw}`;
- const p=s.plane,r=s.radar;
- kv($('#st'),[['Čas',s.time?`${s.time} ${s.date}`:'zatím nenastaven'],['Obrazovka',(SCR[s.screen]||s.screen)+(s.night?' · noc':'')],
-  ['Letadlo',p.nearby?`${p.callsign||p.reg||p.hex} ${p.type} · ${p.distKm.toFixed(1)} km · ${p.altM} m · ${p.speedKmh} km/h${p.count>1?` · +${p.count-1} další`:''}`:(p.on?'žádné v okruhu':'vypnuto')],
-  ['Radar',r.on?(r.frames?`${r.frames} snímků, poslední ${r.newest}`:'stahuji…'):'vypnuto'],
-  ['Počasí',s.forecast.on?(s.forecast.temp!==undefined?`teď ${s.forecast.temp} °C · dnes ${s.forecast.todayMax}/${s.forecast.todayMin} · zítra ${s.forecast.tomorrowMax}/${s.forecast.tomorrowMin} °C`:'stahuji…'):'vypnuto'],
-  ['Déšť v okruhu',r.nearby?`ano – ${r.nearestKm} km, až ${r.maxDbz} dBZ`:'ne'],
-  ['Paměť',`${Math.round(s.heap/1024)} kB volné, největší blok ${Math.round(s.heapMax/1024)} kB`],['Běží',fmtUp(s.uptime)]]);
- const w=s.wifi;kv($('#wst'),[['Stav',w.connected?'připojeno':(w.ap?'vlastní síť '+w.apSsid:'připojuji…')],['Síť',w.ssid||'–'],['Adresa',w.connected?`${w.ip} (${cfg.hostname||''}.local)`:'–'],['Signál',w.connected?w.rssi+' dBm':'–']]);
- $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m==s.mode))}catch(e){$('#sub').textContent='panel neodpovídá'}}
+ $('#sub').textContent=`${s.time||'--:--'} · ${s.wifi.connected?s.wifi.ip:L('bez WiFi','no WiFi')} · ${s.fw}`;
+ const p=s.plane,r=s.radar,f=s.forecast,off=L('vypnuto','off'),dl=L('stahuji…','downloading…');
+ kv($('#st'),[[L('Čas','Time'),s.time?`${s.time} ${s.date}`:L('zatím nenastaven','not set yet')],[L('Obrazovka','Screen'),(lang=='en'?s.screen:(SCR[s.screen]||s.screen))+(s.night?L(' · noc',' · night'):'')],
+  [L('Letadlo','Aircraft'),p.nearby?`${p.callsign||p.reg||p.hex} ${p.type} · ${p.distKm.toFixed(1)} km · ${p.altM} m · ${p.speedKmh} km/h${p.count>1?` · +${p.count-1} ${L('další','more')}`:''}`:(p.on?L('žádné v okruhu','none in range'):off)],
+  ['Radar',r.on?(r.frames?`${SRC[r.src]||''} · ${r.frames} ${L('snímků','frames')}, ${L('poslední','newest')} ${r.newest}`:dl):off],
+  [L('Počasí','Weather'),f.on?(f.temp!==undefined?`${L('teď','now')} ${f.temp} °C · ${L('dnes','today')} ${f.todayMax}/${f.todayMin} · ${L('zítra','tomorrow')} ${f.tomorrowMax}/${f.tomorrowMin} °C`:dl):off],
+  [L('Déšť v okruhu','Rain nearby'),r.nearby?`${L('ano','yes')} – ${r.nearestKm} km, ${L('až','up to')} ${r.maxDbz} dBZ`:L('ne','no')],
+  [L('Paměť','Memory'),`${Math.round(s.heap/1024)} kB ${L('volné, největší blok','free, largest block')} ${Math.round(s.heapMax/1024)} kB`],[L('Běží','Uptime'),fmtUp(s.uptime)]]);
+ const w=s.wifi;kv($('#wst'),[[L('Stav','State'),w.connected?L('připojeno','connected'):(w.ap?L('vlastní síť ','own network ')+w.apSsid:L('připojuji…','connecting…'))],[L('Síť','Network'),w.ssid||'–'],[L('Adresa','Address'),w.connected?`${w.ip} (${cfg.hostname||''}.local)`:'–'],[L('Signál','Signal'),w.connected?w.rssi+' dBm':'–']]);
+ $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m==s.mode))}catch(e){$('#sub').textContent=L('panel neodpovídá','the panel does not answer')}}
 function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return(d?d+' d ':'')+h+' h '+m+' min'}
 $$('#modes button').forEach(b=>b.onclick=async()=>{await post('/api/mode',{mode:b.dataset.m});status()});
-async function scan(){$('#nets').innerHTML='<div class="mut">hledám…</div>';for(let i=0;i<20;i++){const r=await api('/api/scan');
- if(r.done){$('#nets').innerHTML=r.networks.sort((a,b)=>b.rssi-a.rssi).map(n=>`<div data-s="${encodeURIComponent(n.ssid)}">${n.open?'🔓':'🔒'} ${n.ssid.replace(/</g,'&lt;')} <span class="mut">${n.rssi} dBm</span></div>`).join('')||'<div class="mut">nic nenalezeno</div>';
+async function scan(){$('#nets').innerHTML=`<div class="mut">${L('hledám…','scanning…')}</div>`;for(let i=0;i<20;i++){const r=await api('/api/scan');
+ if(r.done){$('#nets').innerHTML=r.networks.sort((a,b)=>b.rssi-a.rssi).map(n=>`<div data-s="${encodeURIComponent(n.ssid)}">${n.open?'🔓':'🔒'} ${n.ssid.replace(/</g,'&lt;')} <span class="mut">${n.rssi} dBm</span></div>`).join('')||`<div class="mut">${L('nic nenalezeno','nothing found')}</div>`;
   $$('#nets div[data-s]').forEach(d=>d.onclick=()=>{$('#wssid').value=decodeURIComponent(d.dataset.s);$('#wpass').focus()});return}
- await new Promise(r=>setTimeout(r,800))}$('#nets').innerHTML='<div class="mut">hledání nedoběhlo</div>'}
-let wifiBusy=0;async function wifiConnect(){if(wifiBusy)return;const ssid=$('#wssid').value.trim();if(!ssid){toast('Zadej název sítě');return}wifiBusy=1;setTimeout(()=>wifiBusy=0,8000);
- await post('/api/wifi',{ssid,pass:$('#wpass').value});toast('Panel se přepíná na domácí WiFi a ukáže novou adresu. Tato síť se teď odpojí.',8000)}
+ await new Promise(r=>setTimeout(r,800))}$('#nets').innerHTML=`<div class="mut">${L('hledání nedoběhlo','the scan did not finish')}</div>`}
+let wifiBusy=0;async function wifiConnect(){if(wifiBusy)return;const ssid=$('#wssid').value.trim();if(!ssid){toast(L('Zadej název sítě','Enter the network name'));return}wifiBusy=1;setTimeout(()=>wifiBusy=0,8000);
+ await post('/api/wifi',{ssid,pass:$('#wpass').value});toast(L('Panel se přepíná na domácí WiFi a ukáže novou adresu. Tato síť se teď odpojí.','The panel switches to the home WiFi and shows its new address. This network will now disconnect.'),8000)}
 let gt;$('#q').oninput=()=>{clearTimeout(gt);gt=setTimeout(geo,400)};
 async function geo(){const q=$('#q').value.trim();if(q.length<2){$('#geo').innerHTML='';return}
- try{const r=await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=6&language=cs&name='+encodeURIComponent(q))).json();
-  $('#geo').innerHTML=(r.results||[]).map(p=>`<div data-lat="${p.latitude}" data-lon="${p.longitude}" data-n="${p.name}">${p.name} <span class="mut">${[p.admin1,p.country].filter(Boolean).join(', ')}</span></div>`).join('')||'<div class="mut">nic</div>';
-  $$('#geo div[data-lat]').forEach(d=>d.onclick=()=>{$('[data-k=lat]').value=(+d.dataset.lat).toFixed(4);$('[data-k=lon]').value=(+d.dataset.lon).toFixed(4);$('[data-k=place]').value=d.dataset.n;$('#geo').innerHTML='';toast('Vybráno – nezapomeň Uložit')})}
- catch(e){$('#geo').innerHTML='<div class="mut">hledání potřebuje internet</div>'}}
-async function importCfg(inp){const f=inp.files[0];if(!f)return;try{cfg=await api('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:await f.text()});fill();toast('Obnoveno')}catch(e){toast('Chyba: '+e.message)}inp.value=''}
-function ota(){const f=$('#fw').files[0];if(!f){toast('Vyber soubor .bin');return}const x=new XMLHttpRequest(),p=$('#fwp');p.hidden=false;
- x.upload.onprogress=e=>p.value=e.loaded/e.total*100;x.onload=()=>toast(x.status==200?'Nahráno, restartuji…':'Chyba: '+x.responseText);
+ try{const r=await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=6&language='+lang+'&name='+encodeURIComponent(q))).json();
+  $('#geo').innerHTML=(r.results||[]).map(p=>`<div data-lat="${p.latitude}" data-lon="${p.longitude}" data-n="${p.name}">${p.name} <span class="mut">${[p.admin1,p.country].filter(Boolean).join(', ')}</span></div>`).join('')||`<div class="mut">${L('nic','nothing')}</div>`;
+  $$('#geo div[data-lat]').forEach(d=>d.onclick=()=>{$('[data-k=lat]').value=(+d.dataset.lat).toFixed(4);$('[data-k=lon]').value=(+d.dataset.lon).toFixed(4);$('[data-k=place]').value=d.dataset.n;$('#geo').innerHTML='';toast(L('Vybráno – nezapomeň Uložit','Selected – do not forget to Save'))})}
+ catch(e){$('#geo').innerHTML=`<div class="mut">${L('hledání potřebuje internet','the search needs internet')}</div>`}}
+async function importCfg(inp){const f=inp.files[0];if(!f)return;try{cfg=await api('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:await f.text()});fill();toast(L('Obnoveno','Restored'))}catch(e){toast(L('Chyba: ','Error: ')+e.message)}inp.value=''}
+function ota(){const f=$('#fw').files[0];if(!f){toast(L('Vyber soubor .bin','Choose a .bin file'));return}const x=new XMLHttpRequest(),p=$('#fwp');p.hidden=false;
+ x.upload.onprogress=e=>p.value=e.loaded/e.total*100;x.onload=()=>toast(x.status==200?L('Nahráno, restartuji…','Uploaded, restarting…'):L('Chyba: ','Error: ')+x.responseText);
  const d=new FormData();d.append('firmware',f);x.open('POST','/update');x.send(d)}
 tab(location.hash.slice(1)||'stav');load().then(status);setInterval(status,2000);
 </script></body></html>)HTML";

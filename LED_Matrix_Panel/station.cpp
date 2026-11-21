@@ -260,6 +260,7 @@ void update() {
   s_lastFrame = now;
 
   const Settings::Values cfg = Settings::get();
+  Screens::setEnglish(cfg.language == LANG_EN);
   struct tm local;
   uint16_t   ms = 0;
   const bool timeOk = TimeSync::now(&local, &ms);

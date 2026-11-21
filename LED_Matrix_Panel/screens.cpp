@@ -19,10 +19,20 @@ namespace {
 
 constexpr int16_t CHAR_W = 6;     // built-in 5x7 font incl. spacing
 
-// Czech names without diacritics – the built-in font is plain ASCII.
-const char* const WEEKDAYS[] = { "NE", "PO", "UT", "ST", "CT", "PA", "SO" };
-const char* const MONTHS[]   = { "LED", "UNO", "BRE", "DUB", "KVE", "CER",
-                                 "CVC", "SRP", "ZAR", "RIJ", "LIS", "PRO" };
+// Texts in both languages. Czech without diacritics – the built-in font is
+// plain ASCII.
+bool s_en = false;                         // set by Screens::setEnglish()
+
+const char* const WEEKDAYS_CS[] = { "NE", "PO", "UT", "ST", "CT", "PA", "SO" };
+const char* const WEEKDAYS_EN[] = { "SU", "MO", "TU", "WE", "TH", "FR", "SA" };
+const char* const MONTHS_CS[]   = { "LED", "UNO", "BRE", "DUB", "KVE", "CER",
+                                    "CVC", "SRP", "ZAR", "RIJ", "LIS", "PRO" };
+const char* const MONTHS_EN[]   = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                                    "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+
+inline const char* L(const char* cs, const char* en) { return s_en ? en : cs; }
+inline const char* weekday(int i) { return (s_en ? WEEKDAYS_EN : WEEKDAYS_CS)[i % 7]; }
+inline const char* month(int i)   { return (s_en ? MONTHS_EN : MONTHS_CS)[i % 12]; }
 
 void textAt(int16_t x, int16_t y, uint16_t color, const char* text) {
   auto& gfx = Display::gfx();
@@ -221,13 +231,15 @@ const uint16_t COL_QR_LIGHT   = rgb565(90, 90, 90);      // light QR modules (di
 
 namespace Screens {
 
+void setEnglish(bool en) { s_en = en; }
+
 void clock(const struct tm* t, uint16_t ms, const Settings::Values& cfg) {
   if (!t) {
     Canvas::clear();
     drawDial(cfg.colorDial);
     Canvas::blit();
     textCentered(48, 16, COL_NO_TIME, "--:--");
-    textCentered(48, 26, rgb565From24(cfg.colorDateLabel), "cas...");
+    textCentered(48, 26, rgb565From24(cfg.colorDateLabel), L("cas...", "time..."));
     return;
   }
   char buf[40];
@@ -249,8 +261,10 @@ void clock(const struct tm* t, uint16_t ms, const Settings::Values& cfg) {
       if (w > 0) gfx.drawFastHLine(4, y, w, rgb565From24(cfg.colorSecond));
     }
     if (cfg.clockDate) {
-      snprintf(buf, sizeof(buf), "%s %d.%d.%d", WEEKDAYS[t->tm_wday], t->tm_mday,
-               t->tm_mon + 1, t->tm_year + 1900);
+      if (s_en) snprintf(buf, sizeof(buf), "%s %d %s %d", weekday(t->tm_wday), t->tm_mday,
+                         month(t->tm_mon), t->tm_year + 1900);
+      else      snprintf(buf, sizeof(buf), "%s %d.%d.%d", weekday(t->tm_wday), t->tm_mday,
+                         t->tm_mon + 1, t->tm_year + 1900);
       textCentered(48, 36, rgb565From24(cfg.colorDateLabel), buf);
     }
     return;
@@ -285,10 +299,10 @@ void clock(const struct tm* t, uint16_t ms, const Settings::Values& cfg) {
   if (cfg.clockDate) {                         // date on both sides of the dial
     const uint16_t label = rgb565From24(cfg.colorDateLabel);
     const uint16_t value = rgb565From24(cfg.colorDateValue);
-    textCentered(12, 12, label, WEEKDAYS[t->tm_wday]);
-    snprintf(buf, sizeof(buf), "%d.", t->tm_mday);
+    textCentered(12, 12, label, weekday(t->tm_wday));
+    snprintf(buf, sizeof(buf), s_en ? "%d" : "%d.", t->tm_mday);
     textCentered(12, 26, value, buf);
-    textCentered(84, 12, label, MONTHS[t->tm_mon]);
+    textCentered(84, 12, label, month(t->tm_mon));
     snprintf(buf, sizeof(buf), "%d", t->tm_year + 1900);
     textCentered(84, 26, value, buf);
   }
@@ -297,8 +311,8 @@ void clock(const struct tm* t, uint16_t ms, const Settings::Values& cfg) {
 void plane(const Aircraft* a, uint8_t inRange) {
   if (!a) {
     drawPlaneIcon(0);
-    textAt(INFO_X, 12, COL_DIST, "zadne");
-    textAt(INFO_X, 22, COL_DIST, "letadlo");
+    textAt(INFO_X, 12, COL_DIST, L("zadne", "no"));
+    textAt(INFO_X, 22, COL_DIST, L("letadlo", "aircraft"));
     return;
   }
   drawPlaneIcon(a->hasTrack ? a->trackDeg : 0);
@@ -384,14 +398,16 @@ void temperature(int16_t cx, int16_t y, uint16_t col, float t) {
 void forecast(const Weather::Forecast* f) {
   auto& gfx = Display::gfx();
   if (!f || !f->valid) {
-    textCentered(48, 16, COL_FC_LABEL, "predpoved");
-    textCentered(48, 26, COL_FC_LABEL, "se nacita...");
+    textCentered(48, 16, COL_FC_LABEL, L("predpoved", "forecast"));
+    textCentered(48, 26, COL_FC_LABEL, L("se nacita...", "loading..."));
     return;
   }
   gfx.drawFastVLine(31, 0, 48, COL_FC_SEP);
   gfx.drawFastVLine(63, 0, 48, COL_FC_SEP);
 
-  static const char* const LABELS[3] = { "TED", "DNES", "ZITRA" };
+  static const char* const LABELS_CS[3] = { "TED", "DNES", "ZITRA" };
+  static const char* const LABELS_EN[3] = { "NOW", "TODAY", "TMRW" };
+  const char* const* LABELS = s_en ? LABELS_EN : LABELS_CS;
   for (uint8_t i = 0; i < 3; i++) {
     const int16_t cx = i * 32 + 15;
     textCentered(cx, 1, COL_FC_LABEL, LABELS[i]);
@@ -442,7 +458,7 @@ void setupAp(const char* ssid, const char* ip) {
 }
 
 void connecting(const char* ssid, uint32_t ms) {
-  textCentered(48, 8, COL_DATE_LABEL, "Pripojuji WiFi");
+  textCentered(48, 8, COL_DATE_LABEL, L("Pripojuji WiFi", "Connecting WiFi"));
   char name[17];
   snprintf(name, sizeof(name), "%s", ssid);
   textCentered(48, 20, COL_NAME, name);

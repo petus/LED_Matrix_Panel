@@ -9,6 +9,7 @@
 #include "debug.h"
 #include "radar_map.h"
 #include "png_stream.h"
+#include "config.h"
 
 #include <Arduino.h>
 #include <PNGdec.h>
@@ -18,8 +19,9 @@
 
 namespace {
 
-// MAX Z composite, plain PNG (not the "png_masked" variant).
-constexpr const char* INDEX_URL   = "https://opendata.chmi.cz/meteorology/weather/radar/composite/maxz/png/";
+// MAX Z composite: plain PNG, or the "masked" variant (same names and geometry).
+constexpr const char* INDEX_URL        = "https://opendata.chmi.cz/meteorology/weather/radar/composite/maxz/png/";
+constexpr const char* INDEX_URL_MASKED = "https://opendata.chmi.cz/meteorology/weather/radar/composite/maxz/png_masked/";
 constexpr const char* NAME_PREFIX = "pacz2gmaps3.z_max3d.";
 constexpr size_t      MAX_PNG     = 128 * 1024;
 constexpr uint8_t     MAX_FRAMES  = 12;
@@ -258,7 +260,7 @@ bool decodeWith(Opener open, uint8_t* grid, bool detect,
 }
 
 // Download + decode one frame straight from the HTTPS stream (no file buffer).
-PngStream::Source s_src;                 // 4 kB window, static: not on the task stack
+PngStream::Source& s_src = PngStream::shared;   // 4 kB window, shared with RainViewer
 
 struct FrameJob {
   uint8_t*  grid;
@@ -296,6 +298,8 @@ bool decodeBody(Net::ReadFn read, void* stream, long size, void* user) {
 
 namespace CHMU {
 
+PNG* decoder() { return s_png; }
+
 bool begin() {
   if (s_png) return true;
   void* mem = Net::allocLarge(sizeof(PNG));
@@ -311,28 +315,35 @@ bool begin() {
 namespace {
 
 // One complete set of frames.
-uint8_t fetchFrom(uint8_t* grids, uint8_t maxFrames,
+uint8_t fetchFrom(uint8_t* grids, uint8_t maxFrames, bool masked,
                   double homeLat, double homeLon, float radiusKm, uint8_t minLevel,
-                  RainInfo* info) {
+                  RainInfo* info, const char* known) {
+  const char* indexUrl = masked ? INDEX_URL_MASKED : INDEX_URL;
 
   // 1) Find the newest file names in the directory listing
   Index* ix = new (std::nothrow) Index();
   if (!ix) return 0;
   ix->want = maxFrames;
-  const long indexBytes = Net::getScan(INDEX_URL, scanIndex, ix, "CHMU");
+  const long indexBytes = Net::getScan(indexUrl, scanIndex, ix, "CHMU");
   if (indexBytes <= 0 || ix->count == 0) {
     DEBUG_LOG("CHMU", "Index failed (%ld B, %u names)", indexBytes, ix->count);
     delete ix;
     return 0;
   }
-  DEBUG_LOG("CHMU", "Index %ld B, newest %s", indexBytes, ix->stamp[ix->count - 1]);
+  DEBUG_LOG("CHMU", "Index%s %ld B, newest %s", masked ? " (masked)" : "", indexBytes,
+            ix->stamp[ix->count - 1]);
+  if (known && strcmp(known, ix->stamp[ix->count - 1]) == 0) {
+    DEBUG_LOG("CHMU", "No new frame");
+    delete ix;
+    return RADAR_UNCHANGED;
+  }
 
   // 2) Download and decode them one by one, oldest first
   RainInfo newest;
   uint8_t done = 0;
   for (uint8_t i = 0; i < ix->count; i++) {
     char url[160];
-    snprintf(url, sizeof(url), "%s%s", INDEX_URL, ix->name[i]);
+    snprintf(url, sizeof(url), "%s%s", indexUrl, ix->name[i]);
     const bool isNewest = (i == ix->count - 1);
     uint8_t* grid = grids + done * RadarGrid::BYTES;
 
@@ -363,6 +374,7 @@ uint8_t fetchFrom(uint8_t* grids, uint8_t maxFrames,
 
   if (done == ix->count) {
     memcpy(newest.timeUtc, ix->stamp[ix->count - 1], 13);
+    newest.source = masked ? RADAR_SRC_CHMU_MASKED : RADAR_SRC_CHMU;
     *info = newest;
     if (newest.nearby) {
       DEBUG_LOG("CHMU", "Rain within %.0f km: nearest %.0f km, max %u dBZ",
@@ -380,11 +392,11 @@ uint8_t fetchFrom(uint8_t* grids, uint8_t maxFrames,
 
 }  // namespace
 
-uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
-              float radiusKm, uint8_t minLevel, RainInfo* info) {
+uint8_t fetch(uint8_t* grids, uint8_t maxFrames, bool masked, double homeLat, double homeLon,
+              float radiusKm, uint8_t minLevel, RainInfo* info, const char* known) {
   if (maxFrames > MAX_FRAMES) maxFrames = MAX_FRAMES;
   if (!s_png) return 0;
-  return fetchFrom(grids, maxFrames, homeLat, homeLon, radiusKm, minLevel, info);
+  return fetchFrom(grids, maxFrames, masked, homeLat, homeLon, radiusKm, minLevel, info, known);
 }
 
 }  // namespace CHMU

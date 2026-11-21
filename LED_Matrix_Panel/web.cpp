@@ -65,7 +65,8 @@ void applyConfig(JsonObjectConst json) {
   // Anything that changes what the radar looks for -> download again
   if (before.homeLat != v.homeLat || before.homeLon != v.homeLon ||
       before.rainRadiusKm != v.rainRadiusKm || before.rainMinDbz != v.rainMinDbz ||
-      before.radarFrames != v.radarFrames || (!before.radarEnabled && v.radarEnabled)) {
+      before.radarFrames != v.radarFrames || before.radarSource != v.radarSource ||
+      (!before.radarEnabled && v.radarEnabled)) {
     Fetcher::requestRadar();
   }
   if (before.homeLat != v.homeLat || before.homeLon != v.homeLon ||
@@ -133,6 +134,7 @@ void handleStatus() {
   JsonObject r = doc["radar"].to<JsonObject>();
   r["on"]     = cfg.radarEnabled;
   r["frames"] = s.radarFrames;
+  r["src"]    = s.rain.source;                 // RADAR_SRC_* of the frames shown
   if (s.rain.timeUtc[0]) {                    // YYYYMMDDHHMM -> "HH:MM UTC"
     char buf[12];
     snprintf(buf, sizeof(buf), "%.2s:%.2s UTC", s.rain.timeUtc + 8, s.rain.timeUtc + 10);

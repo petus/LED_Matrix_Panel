@@ -9,6 +9,7 @@
 #include "net.h"
 #include "adsb.h"
 #include "chmu.h"
+#include "rainviewer.h"
 #include "forecast.h"
 #include "sky_data.h"
 #include "settings.h"
@@ -39,6 +40,8 @@ void task(void*) {
   bool     firstPlane = true, firstTime = true;
   bool     wasOnline = false;
   bool     planeCleared = false, radarCleared = false;   // "off" published once
+  char     radarStamp[13] = "";   // newest frame on the panel ("" = none / must reload)
+  uint8_t  radarSource = 0xFF;    // source of the frames on the panel
 
   for (;;) {
     const bool online = Net::connected();
@@ -84,6 +87,8 @@ void task(void*) {
 
     // Radar – heavier (index + several PNGs), every 5 minutes.
     if (cfg.radarEnabled && (s_radarRequested || now - lastRadar >= radarWait)) {
+      // A forced reload (changed settings) or another source: download all again.
+      if (s_radarRequested || radarSource != cfg.radarSource) radarStamp[0] = '\0';
       s_radarRequested = false;
       radarCleared = false;
       lastRadar = millis();
@@ -91,11 +96,22 @@ void task(void*) {
                 (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
       RainInfo rain;
       [[maybe_unused]] const uint32_t t0 = millis();
-      const uint8_t frames = CHMU::fetch(s_scratch, cfg.radarFrames, cfg.homeLat, cfg.homeLon,
-                                         cfg.rainRadiusKm, RadarPalette::dbzToLevel(cfg.rainMinDbz),
-                                         &rain);
-      if (frames) {
+      const uint8_t  minLevel = RadarPalette::dbzToLevel(cfg.rainMinDbz);
+      const char*    known    = radarStamp[0] ? radarStamp : nullptr;
+      uint8_t frames;
+      if (cfg.radarSource == RADAR_SRC_RAINVIEWER) {
+        frames = RainViewer::fetch(s_scratch, cfg.radarFrames, cfg.homeLat, cfg.homeLon,
+                                   cfg.rainRadiusKm, minLevel, &rain, known);
+      } else {
+        frames = CHMU::fetch(s_scratch, cfg.radarFrames, cfg.radarSource == RADAR_SRC_CHMU_MASKED,
+                             cfg.homeLat, cfg.homeLon, cfg.rainRadiusKm, minLevel, &rain, known);
+      }
+      if (frames == RADAR_UNCHANGED) {
+        radarWait = RADAR_RETRY_MS;            // nothing new yet – ask again in a minute
+      } else if (frames) {
         SkyData::publishRadar(s_scratch, frames, rain);
+        memcpy(radarStamp, rain.timeUtc, sizeof(radarStamp));
+        radarSource = cfg.radarSource;
         radarWait = RADAR_PERIOD_MS;
         DEBUG_LOG("NET", "Radar: %u frames in %lu ms (task stack free %u B)", frames,
                   (unsigned long)(millis() - t0), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
@@ -105,6 +121,7 @@ void task(void*) {
     } else if (!cfg.radarEnabled && !radarCleared) {
       SkyData::publishRadar(s_scratch, 0, RainInfo());
       radarCleared = true;
+      radarStamp[0] = '\0';
     }
 
     // Forecast – one small request every 15 minutes.

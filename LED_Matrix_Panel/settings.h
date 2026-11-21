@@ -79,6 +79,10 @@ namespace Settings {
     uint16_t autoPlaneEveryS;     // "now and then": pause between two showings
     uint16_t autoPlaneShowS;      // "now and then": aircraft shown this long
     bool     mapBackground;       // radar: draw the land
+    // Radar source and language (added later). Both 0 = the old behaviour,
+    // so padding bytes of an older blob (always zero) load as the defaults.
+    uint8_t  radarSource;         // RADAR_SRC_* (config.h)
+    uint8_t  language;            // LANG_CS / LANG_EN
   };
 
   /// Load from flash (defaults when empty or from an older layout).

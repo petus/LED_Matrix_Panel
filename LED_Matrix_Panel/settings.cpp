@@ -122,6 +122,8 @@ Values defaults() {
   v.autoPlaneEveryS = DEFAULT_AUTO_PLANE_EVERY_S;
   v.autoPlaneShowS  = DEFAULT_AUTO_PLANE_SHOW_S;
   v.mapBackground   = DEFAULT_MAP_BACKGROUND;
+  v.radarSource     = DEFAULT_RADAR_SOURCE;
+  v.language        = DEFAULT_LANGUAGE;
 
   v.brightDay      = DEFAULT_BRIGHT_DAY;
   v.brightNight    = DEFAULT_BRIGHT_NIGHT;
@@ -152,7 +154,8 @@ void begin() {
     if (p.getBytes(KEY_VALUES, &tmp, sizeof(tmp)) == len) {
       // Where each older layout ended (the first field it did not have yet).
       static const size_t ENDS[] = { offsetof(Values, colorDial), offsetof(Values, forecastEnabled),
-                                     offsetof(Values, viewEnabled), offsetof(Values, screenMode) };
+                                     offsetof(Values, viewEnabled), offsetof(Values, screenMode),
+                                     offsetof(Values, radarSource) };
       size_t take = len;
       if (len != sizeof(Values)) {
         take = 0;
@@ -164,6 +167,10 @@ void begin() {
     }
   }
   p.end();
+
+  // Values out of range (e.g. bytes that were padding in an older layout)
+  if (s_values.radarSource > RADAR_SRC_MAX) s_values.radarSource = DEFAULT_RADAR_SOURCE;
+  if (s_values.language > LANG_EN)          s_values.language    = DEFAULT_LANGUAGE;
 
   // Make sure strings are terminated even if flash held garbage.
   s_values.hostname[sizeof(s_values.hostname) - 1] = '\0';
@@ -276,6 +283,8 @@ void toJson(const Values& v, JsonObject o) {
   o["autoPlaneEvery"] = v.autoPlaneEveryS;
   o["autoPlaneShow"]  = v.autoPlaneShowS;
   o["mapBg"]       = v.mapBackground;
+  o["radarSrc"]    = v.radarSource;
+  o["lang"]        = v.language == LANG_EN ? "en" : "cs";
 
   o["brightDay"]   = v.brightDay;
   o["brightNight"] = v.brightNight;
@@ -354,6 +363,8 @@ void fromJson(JsonObjectConst j, Values& v) {
   if (j["autoPlaneEvery"].is<int>())  v.autoPlaneEveryS = clampT(j["autoPlaneEvery"].as<int>(), 5, 3600);
   if (j["autoPlaneShow"].is<int>())   v.autoPlaneShowS  = clampT(j["autoPlaneShow"].as<int>(), 3, 600);
   if (j["mapBg"].is<bool>())          v.mapBackground   = j["mapBg"];
+  if (j["radarSrc"].is<int>())        v.radarSource     = clampT(j["radarSrc"].as<int>(), 0, RADAR_SRC_MAX);
+  if (j["lang"].is<const char*>())    v.language        = strcmp(j["lang"].as<const char*>(), "en") == 0 ? LANG_EN : LANG_CS;
 
   if (j["brightDay"].is<int>())   v.brightDay   = clampT(j["brightDay"].as<int>(), 1, 255);
   if (j["brightNight"].is<int>()) v.brightNight = clampT(j["brightNight"].as<int>(), 1, 255);

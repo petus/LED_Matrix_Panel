@@ -173,6 +173,19 @@
 #define DEFAULT_ANIM_HOLD_MS    2000             // newest frame stays longer
 #define DEFAULT_RADAR_LEGEND    true
 #define DEFAULT_RADAR_CITIES    true
+// Radar source (stored in NVS as a number – never renumber, only append)
+#define RADAR_SRC_CHMU          0                // ČHMÚ MAX Z composite, every echo
+#define RADAR_SRC_CHMU_MASKED   1                // ČHMÚ, only echoes that reach the ground
+#define RADAR_SRC_RAINVIEWER    2                // RainViewer tiles (international)
+#define RADAR_SRC_MAX           2
+#define DEFAULT_RADAR_SOURCE    RADAR_SRC_CHMU
+
+// Language of the panel texts and the web interface (0 Czech, 1 English)
+#define LANG_CS                 0
+#define LANG_EN                 1
+#ifndef DEFAULT_LANGUAGE                         // a build can set it: -DDEFAULT_LANGUAGE=1
+#define DEFAULT_LANGUAGE        LANG_CS
+#endif
 
 #define DEFAULT_CLOCK_ANALOG    true             // false = digital
 #define DEFAULT_CLOCK_SECONDS   true
@@ -220,6 +233,12 @@
 #define FORECAST_MAX_AGE_MS   (3UL * 60UL * 60UL * 1000UL)
 #define RADAR_PERIOD_MS        (5UL * 60UL * 1000UL)   // ČHMÚ: new image every 5 min
 #define RADAR_RETRY_MS         (60UL * 1000UL)         // after a failed download
+// RainViewer: Web Mercator tiles, max. zoom 7. Zoom 6 covers the panel map
+// with 2x2 tiles of 256 px, about 4 tile pixels per panel pixel.
+#define RV_INDEX_URL           "https://api.rainviewer.com/public/weather-maps.json"
+#define RV_ZOOM                6
+#define RV_TILE_SIZE           256
+#define RV_COLOR               2                 // "Universal Blue", the only scheme offered
 #define FRAME_INTERVAL_MS      20                // 50 FPS
 
 // Sent with every HTTP request – free APIs ask for an identifiable client.

@@ -58,6 +58,10 @@ namespace PngStream {
   /// The source for the next open() – PNGdec's open callback has no user pointer.
   inline Source* current = nullptr;
 
+  /// One window shared by all radar sources (they never decode at the same
+  /// time – everything runs in the network task). Static: not on a stack.
+  inline Source shared;
+
   inline void* openCb(const char*, int32_t* fileSize) {
     *fileSize = current ? current->size : 0;
     return current;

@@ -13,6 +13,9 @@
 
 namespace Screens {
 
+  /// Language of the texts on the panel (false = Czech).
+  void setEnglish(bool en);
+
   /// Clock – analog (anti-aliased hands, gliding second hand) or digital,
   /// colours and options from the settings. ms = milliseconds of the second.
   /// local == nullptr -> time not known yet (shows "--:--").
