@@ -1,5 +1,7 @@
 # LED Matrix Panel
 
+*English · [Česky](README.cs.md)*
+
 Clock, nearby aircraft and ČHMÚ precipitation radar on a
 **Waveshare RGB LED matrix 96×48, P2.5 (HUB75)** driven by the
 **LaskaKit ESP32-S3-DEVKit**. Everything is configured from a web page
@@ -27,7 +29,33 @@ On the radar map, cities are blue 5-LED crosses (Praha, Plzeň, Liberec, Ústí 
 Jihlava, České Budějovice, Brno, Olomouc, Ostrava). Your position is a green LED; when it falls
 on a city (or one pixel next to it), the cross has a green centre and blue arms.
 
-The radar uses the plain MAX Z composite (`png`, not `png_masked`).
+Radar source (web, Radar tab):
+
+| Source | What it is |
+|--------|------------|
+| ČHMÚ | MAX Z composite (`png`), every echo the radars see, new frame every 5 min |
+| ČHMÚ masked | the same composite from `png_masked`: only precipitation that reaches the ground (no virga, no anvils of distant storms) |
+| RainViewer | international composite, Web Mercator tiles (zoom 6, 2×2 tiles of 256 px), new frame every 10 min, coarser |
+
+All sources end up in the same 4-bit grid with the ČHMÚ levels (4–60 dBZ), so the map, the legend
+and the rain threshold work the same. A frame already shown is not downloaded again.
+
+Language: Czech or English for the panel texts and the web page (Systém → Jazyk / Language).
+
+## Ready-made firmware
+
+No Arduino IDE needed: flash a file from the `bin` folder from offset **0x0**,
+e.g. in Chrome / Edge with [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
+
+| File | Use |
+|------|-----|
+| `LED_Matrix_Panel_EN.merged.bin` | first installation, panel and web in **English** |
+| `LED_Matrix_Panel_CZ.merged.bin` | first installation, panel and web in **Czech** |
+| `LED_Matrix_Panel.bin` | later updates over WiFi (*Systém → Aktualizace firmwaru*), keeps all settings |
+
+The language of the file only sets the default. A board that already has settings stored
+keeps its language; erase the flash before flashing (or use *Factory reset*) to get the
+default, or simply switch it on the web page (Systém → Jazyk / Language).
 
 ## First start
 
@@ -46,7 +74,7 @@ The radio is always either a station or an access point, never both – in the m
 AP+STA mode the station searches other channels and phones on the set-up network
 keep losing the connection.
 
-## Web interface (Czech)
+## Web interface (Czech / English)
 
 | Tab | Settings |
 |-----|----------|
@@ -54,10 +82,10 @@ keep losing the connection.
 | WiFi | network scan, connect, forget |
 | Poloha | search a town (Open-Meteo geocoding, runs in the browser), latitude / longitude |
 | Letadla | on/off, radius, minimum altitude, callsign only, poll interval, minimum show time; viewing direction (8 directions), ± width, own range, with a small map of the sector |
-| Radar | on/off, rain radius, dBZ threshold, frames, animation speed, hold, legend, cities, map background |
+| Radar | on/off, source (ČHMÚ / ČHMÚ masked / RainViewer), rain radius, dBZ threshold, frames, animation speed, hold, legend, cities, map background |
 | Hodiny a počasí | analog / digital, seconds, date; colours of hands, seconds, digits, dial marks, weekday + month, day + year; forecast on/off and timing |
 | Displej | automatic mode (aircraft at once / now and then / never), rotation (screens, interval, radar without rain); brightness day / night, night by time or sunset–sunrise, dim or off, clock only |
-| Systém | host name, time zone, backup / restore (JSON), firmware update, restart, factory reset |
+| Systém | language, host name, time zone, backup / restore (JSON), firmware update, restart, factory reset |
 
 Settings are kept in NVS (Preferences) – they survive firmware updates. The `DEFAULT_*`
 values in `config.h` are used only on the very first start or after a factory reset.
@@ -143,7 +171,8 @@ net.h/.cpp        HTTPS helpers (streaming, growing buffers)
 time_sync.h/.cpp  clock from the HTTP "Date" header
 sun.h/.cpp        sunrise / sunset (NOAA)
 adsb.h/.cpp       nearest aircraft from adsb.fi + count in range
-chmu.h/.cpp       ČHMÚ radar: directory index, PNG download, decoding
+chmu.h/.cpp       ČHMÚ radar (plain / masked): directory index, PNG download, decoding
+rainviewer.h/.cpp RainViewer radar: index JSON, tiles, colour -> dBZ
 png_stream.h      feeds PNGdec straight from the HTTPS stream (sliding window)
 forecast.h/.cpp   Open-Meteo: weather now, today, tomorrow
 weather_icons.h/.cpp  16x16 weather icons drawn with GFX primitives
@@ -199,7 +228,8 @@ Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download rada
 ## Data and licences
 
 - Aircraft: [adsb.fi](https://adsb.fi) open data (non-commercial use)
-- Radar: [ČHMÚ open data](https://opendata.chmi.cz) (MAX Z composite, `png`)
+- Radar: [ČHMÚ open data](https://opendata.chmi.cz) (MAX Z composite, `png` / `png_masked`)
+- Radar: [RainViewer](https://www.rainviewer.com/api.html) (personal / non-commercial use, max. 100 requests/min)
 - Forecast: [Open-Meteo](https://open-meteo.com) (CC BY 4.0, free for non-commercial use)
 - Map: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Town search: [Open-Meteo geocoding](https://open-meteo.com) (in the browser)

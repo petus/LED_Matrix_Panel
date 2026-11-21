@@ -1,5 +1,7 @@
 # LED Matrix Panel
 
+*[English](README.en.md) · Česky*
+
 Hodiny, letadla v okolí a srážkový radar ČHMÚ na
 **RGB LED matici Waveshare 96×48, P2.5 (HUB75)** řízené deskou
 **LaskaKit ESP32-S3-DEVKit**. Vše se nastavuje přes webovou stránku
@@ -27,7 +29,33 @@ Na mapě radaru jsou města modré křížky z 5 LED (Praha, Plzeň, Liberec, Ú
 Jihlava, České Budějovice, Brno, Olomouc, Ostrava). Vaše poloha je zelená LED. Když padne
 na město (nebo o jeden pixel vedle), má křížek zelený střed a modrá ramena.
 
-Radar používá obyčejný kompozit MAX Z (`png`, ne `png_masked`).
+Zdroj radaru (web, záložka Radar):
+
+| Zdroj | Co to je |
+|-------|----------|
+| ČHMÚ | kompozit MAX Z (`png`), všechny odrazy, které radary vidí, nový snímek každých 5 min |
+| ČHMÚ masked | stejný kompozit ze složky `png_masked`: jen srážky, které dopadnou na zem (bez virgy a kovadlin vzdálených bouřek) |
+| RainViewer | mezinárodní kompozit, dlaždice Web Mercator (zoom 6, 2×2 dlaždice po 256 px), nový snímek každých 10 min, hrubší |
+
+Všechny zdroje končí ve stejné 4bitové mřížce s úrovněmi ČHMÚ (4 až 60 dBZ), takže mapa, legenda
+i práh deště fungují stejně. Snímek, který panel už má, se znovu nestahuje.
+
+Jazyk: čeština nebo angličtina pro texty na panelu i webovou stránku (Systém → Jazyk / Language).
+
+## Hotový firmware
+
+Arduino IDE není potřeba: soubor ze složky `bin` nahrajte od adresy **0x0**,
+např. v Chromu / Edge přes [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
+
+| Soubor | Použití |
+|--------|---------|
+| `LED_Matrix_Panel_CZ.merged.bin` | první instalace, panel i web **česky** |
+| `LED_Matrix_Panel_EN.merged.bin` | první instalace, panel i web **anglicky** |
+| `LED_Matrix_Panel.bin` | další aktualizace přes WiFi (*Systém → Aktualizace firmwaru*), nastavení zůstane |
+
+Jazyk souboru určuje jen výchozí nastavení. Deska, která už má nastavení uložené, si svůj
+jazyk ponechá. Pro výchozí jazyk před nahráním smažte flash (nebo použijte *Tovární nastavení*),
+případně jazyk jednoduše přepněte na webu (Systém → Jazyk / Language).
 
 ## První spuštění
 
@@ -46,7 +74,7 @@ Rádio je vždy buď stanice, nebo přístupový bod, nikdy obojí. Ve smíšen�
 AP+STA stanice prohledává jiné kanály a telefony v nastavovací síti
 neustále ztrácejí spojení.
 
-## Webové rozhraní (česky)
+## Webové rozhraní (česky / anglicky)
 
 | Záložka | Nastavení |
 |---------|-----------|
@@ -54,10 +82,10 @@ neustále ztrácejí spojení.
 | WiFi | vyhledání sítí, připojení, zapomenutí |
 | Poloha | vyhledání obce (geokódování Open-Meteo, běží v prohlížeči), zeměpisná šířka / délka |
 | Letadla | zapnuto/vypnuto, okruh, minimální výška, jen s volacím znakem, interval dotazů, minimální doba zobrazení; směr výhledu (8 směrů), ± šířka, vlastní dosah, s malou mapkou výseče |
-| Radar | zapnuto/vypnuto, okruh deště, práh dBZ, počet snímků, rychlost animace, zdržení posledního snímku, legenda, města, podklad mapy |
+| Radar | zapnuto/vypnuto, zdroj (ČHMÚ / ČHMÚ masked / RainViewer), okruh deště, práh dBZ, počet snímků, rychlost animace, zdržení posledního snímku, legenda, města, podklad mapy |
 | Hodiny a počasí | ručičkové / digitální, vteřiny, datum; barvy ručiček, vteřinovky, číslic, značek ciferníku, dne v týdnu + měsíce, dne + roku; předpověď zapnuto/vypnuto a časování |
 | Displej | automatický režim (letadlo ihned / občas / nikdy), střídání (obrazovky, interval, radar bez deště); jas ve dne / v noci, noc podle času nebo od západu do východu slunce, ztlumit nebo vypnout, jen hodiny |
-| Systém | název zařízení, časové pásmo, záloha / obnova (JSON), aktualizace firmwaru, restart, tovární nastavení |
+| Systém | jazyk, název zařízení, časové pásmo, záloha / obnova (JSON), aktualizace firmwaru, restart, tovární nastavení |
 
 Nastavení se ukládá do NVS (Preferences) a přežije aktualizaci firmwaru. Hodnoty `DEFAULT_*`
 v `config.h` se použijí jen při úplně prvním startu nebo po továrním nastavení.
@@ -143,7 +171,8 @@ net.h/.cpp        pomocné funkce pro HTTPS (streamování, rostoucí buffery)
 time_sync.h/.cpp  čas z HTTP hlavičky „Date“
 sun.h/.cpp        východ / západ slunce (NOAA)
 adsb.h/.cpp       nejbližší letadlo z adsb.fi + počet v okruhu
-chmu.h/.cpp       radar ČHMÚ: výpis adresáře, stažení PNG, dekódování
+chmu.h/.cpp       radar ČHMÚ (obyčejný / masked): výpis adresáře, stažení PNG, dekódování
+rainviewer.h/.cpp radar RainViewer: index JSON, dlaždice, převod barev na dBZ
 png_stream.h      plní PNGdec přímo z HTTPS proudu (posuvné okno)
 forecast.h/.cpp   Open-Meteo: počasí teď, dnes, zítra
 weather_icons.h/.cpp  ikony počasí 16x16 kreslené primitivy GFX
@@ -199,7 +228,8 @@ Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout 
 ## Data a licence
 
 - Letadla: otevřená data [adsb.fi](https://adsb.fi) (nekomerční použití)
-- Radar: [otevřená data ČHMÚ](https://opendata.chmi.cz) (kompozit MAX Z, `png`)
+- Radar: [otevřená data ČHMÚ](https://opendata.chmi.cz) (kompozit MAX Z, `png` / `png_masked`)
+- Radar: [RainViewer](https://www.rainviewer.com/api.html) (osobní / nekomerční použití, max. 100 dotazů za minutu)
 - Předpověď: [Open-Meteo](https://open-meteo.com) (CC BY 4.0, zdarma pro nekomerční použití)
 - Mapa: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Vyhledání obce: [geokódování Open-Meteo](https://open-meteo.com) (v prohlížeči)
