@@ -1,6 +1,6 @@
 # LED Matrix Panel
 
-*English · [Česky](README.cs.md)*
+*English · [Česky](README.md)*
 
 Clock, nearby aircraft and ČHMÚ precipitation radar on a
 **Waveshare RGB LED matrix 96×48, P2.5 (HUB75)** driven by the
