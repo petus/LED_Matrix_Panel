@@ -33,13 +33,53 @@ volatile bool s_radarRequested    = true;       // first download right away
 volatile bool s_forecastRequested = true;
 uint8_t*      s_scratch        = nullptr;       // decode target before publishing
 
+// Aircraft state – shared by the task loop and the radar's idle hook.
+uint32_t s_lastPlane    = 0;
+bool     s_firstPlane   = true;
+bool     s_planeCleared = false;                // "off" published once
+
+// Ask adsb.fi when it is time (or force). Also keeps the clock right through
+// the HTTP Date header.
+void pollPlane(bool force) {
+  const Settings::Values cfg = Settings::get();
+  if (!cfg.planeEnabled) {
+    if (!s_planeCleared) {
+      SkyData::publishPlane(false, Aircraft(), 0);
+      s_planeCleared = true;
+    }
+    return;
+  }
+  const uint32_t now = millis();
+  if (!force && !s_firstPlane && now - s_lastPlane < cfg.planePeriodS * 1000UL) return;
+  s_firstPlane   = false;
+  s_planeCleared = false;
+  s_lastPlane    = now;
+  ADSB::Filter f;
+  f.radiusKm     = cfg.planeRadiusKm;
+  f.minAltM      = cfg.planeMinAltM;
+  f.callsignOnly = cfg.planeCallsignOnly;
+  f.viewEnabled  = cfg.viewEnabled;
+  f.viewDirDeg   = cfg.viewDirDeg;
+  f.viewHalfDeg  = cfg.viewHalfDeg;
+  f.viewRangeKm  = cfg.viewRangeKm;
+  ADSB::Result r;
+  if (ADSB::fetch(cfg.homeLat, cfg.homeLon, f, &r)) {
+    SkyData::publishPlane(r.found, r.plane, r.count);
+  }
+}
+
+// Called by the radar sources between frames (no connection open then).
+void radarIdle() {
+  if (Net::connected()) pollPlane(false);
+}
+
 void task(void*) {
-  uint32_t lastPlane = 0, lastRadar = 0, lastTime = 0;
+  uint32_t lastRadar = 0, lastTime = 0;
   uint32_t radarWait = 0;
   uint32_t lastForecast = 0, forecastWait = 0;
-  bool     firstPlane = true, firstTime = true;
+  bool     firstTime = true;
   bool     wasOnline = false;
-  bool     planeCleared = false, radarCleared = false;   // "off" published once
+  bool     radarCleared = false;                 // "off" published once
   char     radarStamp[13] = "";   // newest frame on the panel ("" = none / must reload)
   uint8_t  radarSource = 0xFF;    // source of the frames on the panel
 
@@ -53,7 +93,7 @@ void task(void*) {
     if (WifiSetup::connectedForMs() < NET_SETTLE_MS) { vTaskDelay(pdMS_TO_TICKS(200)); continue; }
     if (!wasOnline) {                         // (re)connected: fetch everything now
       wasOnline = true;
-      firstPlane = true;
+      s_firstPlane = true;
       s_radarRequested = true;
       s_forecastRequested = true;
     }
@@ -62,28 +102,7 @@ void task(void*) {
     const uint32_t now = millis();
 
     // Aircraft – also keeps the clock right through the HTTP Date header.
-    if (cfg.planeEnabled) {
-      if (firstPlane || now - lastPlane >= cfg.planePeriodS * 1000UL) {
-        firstPlane = false;
-        planeCleared = false;
-        lastPlane = now;
-        ADSB::Filter f;
-        f.radiusKm     = cfg.planeRadiusKm;
-        f.minAltM      = cfg.planeMinAltM;
-        f.callsignOnly = cfg.planeCallsignOnly;
-        f.viewEnabled  = cfg.viewEnabled;
-        f.viewDirDeg   = cfg.viewDirDeg;
-        f.viewHalfDeg  = cfg.viewHalfDeg;
-        f.viewRangeKm  = cfg.viewRangeKm;
-        ADSB::Result r;
-        if (ADSB::fetch(cfg.homeLat, cfg.homeLon, f, &r)) {
-          SkyData::publishPlane(r.found, r.plane, r.count);
-        }
-      }
-    } else if (!planeCleared) {
-      SkyData::publishPlane(false, Aircraft(), 0);
-      planeCleared = true;
-    }
+    pollPlane(false);
 
     // Radar – heavier (index + several PNGs), every 5 minutes.
     if (cfg.radarEnabled && (s_radarRequested || now - lastRadar >= radarWait)) {
@@ -101,10 +120,11 @@ void task(void*) {
       uint8_t frames;
       if (cfg.radarSource == RADAR_SRC_RAINVIEWER) {
         frames = RainViewer::fetch(s_scratch, cfg.radarFrames, cfg.homeLat, cfg.homeLon,
-                                   cfg.rainRadiusKm, minLevel, &rain, known);
+                                   cfg.rainRadiusKm, minLevel, &rain, known, radarIdle);
       } else {
         frames = CHMU::fetch(s_scratch, cfg.radarFrames, cfg.radarSource == RADAR_SRC_CHMU_MASKED,
-                             cfg.homeLat, cfg.homeLon, cfg.rainRadiusKm, minLevel, &rain, known);
+                             cfg.homeLat, cfg.homeLon,
+                             cfg.rainRadiusKm, minLevel, &rain, known, radarIdle);
       }
       if (frames == RADAR_UNCHANGED) {
         radarWait = RADAR_RETRY_MS;            // nothing new yet – ask again in a minute

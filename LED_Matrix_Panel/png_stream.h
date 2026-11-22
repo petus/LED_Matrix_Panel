@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <PNGdec.h>
+#include "src/PNGdec/PNGdec.h"   // bundled copy, see the note there
 
 namespace PngStream {
 

@@ -17,6 +17,7 @@
 #include <WiFi.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
+#include <esp_wifi.h>
 #include <string.h>
 
 namespace {
@@ -38,11 +39,14 @@ uint32_t         s_switchAt    = 0;      // != 0: leave the AP and connect at th
 bool             s_everConnected = false;
 bool             s_mdnsOn      = false;
 bool             s_scanning    = false;
+uint32_t         s_apClientAt  = 0;      // last time a phone was on the set-up network
+uint32_t         s_apLogAt     = 0;      // last "AP alive" log line
 
 // Log phones joining / leaving the set-up network (diagnostics).
 void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
   switch (event) {
     case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+      s_apClientAt = millis();
       DEBUG_LOG("WIFI", "Phone joined the set-up network");
       break;
     case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
@@ -61,18 +65,50 @@ void setState(WifiSetup::State st) {
   s_since = millis();
 }
 
+// What the radio really does as an access point – for the log.
+void logApConfig() {
+  wifi_config_t conf = {};
+  wifi_mode_t   mode = WIFI_MODE_NULL;
+  esp_wifi_get_mode(&mode);
+  if (esp_wifi_get_config(WIFI_IF_AP, &conf) == ESP_OK) {
+    int8_t power = 0;
+    esp_wifi_get_max_tx_power(&power);                     // in 0.25 dBm
+    DEBUG_LOG("WIFI", "AP config: SSID \"%.32s\", channel %u, auth %d, hidden %u, mode %d, TX %.1f dBm",
+              (const char*)conf.ap.ssid, conf.ap.channel, (int)conf.ap.authmode,
+              conf.ap.ssid_hidden, (int)mode, power * 0.25f);
+  } else {
+    DEBUG_LOG("WIFI", "AP config: not available (mode %d)", (int)mode);
+  }
+}
+
 void startAp() {
   if (s_apOn) return;
-  WiFi.disconnect(true);                  // station off completely
+  // Same order as MeteoPlaneRadar. Turn the station off only when it runs –
+  // switching a radio that is not started off and on again is not needed.
+  if (WiFi.getMode() & WIFI_MODE_STA) WiFi.disconnect(true);
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(s_apSsid);                  // open network, default address 192.168.4.1
+  // Open network, default address 192.168.4.1, fixed channel, visible.
+  bool ok = WiFi.softAP(s_apSsid, nullptr, WIFI_AP_CHANNEL, 0, 4);
+  if (!ok) {
+    DEBUG_LOG("WIFI", "softAP() failed, restarting the radio");
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+    WiFi.mode(WIFI_AP);
+    ok = WiFi.softAP(s_apSsid, nullptr, WIFI_AP_CHANNEL, 0, 4);
+  }
   delay(200);                             // give the AP a moment before DNS binds
+  WiFi.setSleep(false);                   // the AP must send its beacons all the time
+  WiFi.setTxPower(WIFI_AP_TX_POWER);      // lower current peaks (see config.h)
   // Every name -> us, so phones open the settings page (captive portal).
   s_dns.setErrorReplyCode(DNSReplyCode::NoError);
   s_dns.start(DNS_PORT, "*", WiFi.softAPIP());
   s_apOn = true;
+  s_apClientAt = millis();
+  s_apLogAt    = millis();
   setState(WifiSetup::State::AccessPoint);
-  DEBUG_LOG("WIFI", "Access point \"%s\" at %s", s_apSsid, WiFi.softAPIP().toString().c_str());
+  DEBUG_LOG("WIFI", "Access point \"%s\" at %s%s", s_apSsid, WiFi.softAPIP().toString().c_str(),
+            ok ? "" : " (softAP() reported an error)");
+  logApConfig();
 }
 
 void stopAp() {
@@ -88,6 +124,9 @@ void startSta() {
   if (!s_ssid[0]) return;
   stopAp();
   WiFi.mode(WIFI_STA);
+  // No modem sleep: with power saving the radio sleeps between beacons and
+  // large downloads (radar index, PNG frames, tiles) crawl at a few kB/s.
+  WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
   DEBUG_LOG("WIFI", "Connecting to \"%s\"", s_ssid);
   WiFi.begin(s_ssid, s_pass);
@@ -124,16 +163,18 @@ void begin() {
 
   WiFi.onEvent(onWifiEvent);
   WiFi.persistent(false);                  // credentials live in our own settings
-  // Forget any network an older sketch stored in the WiFi driver itself –
-  // otherwise the station would quietly try to join it on its own.
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(false, true);
   WiFi.setHostname(Settings::get().hostname);
 
   Settings::wifi(s_ssid, sizeof(s_ssid), s_pass, sizeof(s_pass));
   if (s_ssid[0]) {
+    // Forget any network an older sketch stored in the WiFi driver itself –
+    // otherwise the station would quietly try to join it on its own.
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, true);
     startSta();
   } else {
+    // No network: straight to the access point, like MeteoPlaneRadar (no
+    // station start / stop right before it).
     DEBUG_LOG("WIFI", "No WiFi stored");
     startAp();
   }
@@ -162,9 +203,23 @@ void loop() {
       break;
 
     case State::AccessPoint:
+      if (WiFi.softAPgetStationNum() > 0) s_apClientAt = now;
+      if (now - s_apLogAt >= 60000) {
+        s_apLogAt = now;
+        DEBUG_LOG("WIFI", "Set-up network \"%s\" on, %u phone(s), channel %u, free heap %lu B",
+                  s_apSsid, (unsigned)WiFi.softAPgetStationNum(), (unsigned)WiFi.channel(),
+                  (unsigned long)ESP.getFreeHeap());
+      }
       if (s_switchAt && (int32_t)(now - s_switchAt) >= 0) {
         s_switchAt = 0;                       // new network entered on the page
         startSta();
+      } else if (!s_switchAt && now - s_apClientAt > WIFI_AP_RESTART_MS) {
+        DEBUG_LOG("WIFI", "Nobody on the set-up network for %lu s, restarting it",
+                  (unsigned long)(WIFI_AP_RESTART_MS / 1000));
+        stopAp();
+        WiFi.mode(WIFI_OFF);
+        delay(100);
+        startAp();
       } else if (s_ssid[0] && now - s_since > WIFI_AP_RETRY_MS &&
                  WiFi.softAPgetStationNum() == 0) {
         DEBUG_LOG("WIFI", "Trying the home WiFi again");

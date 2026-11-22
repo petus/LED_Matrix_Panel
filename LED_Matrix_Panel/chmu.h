@@ -4,10 +4,13 @@
  *
  * Source: https://opendata.chmi.cz/meteorology/weather/radar/composite/maxz/png/
  *   or .../maxz/png_masked/ – the same picture, but only echoes that reach
- *   the ground (checked against PseudoCAPPI 2 km) are drawn at full colour.
- *   The rest is semi-transparent; blended against black it is darker than
- *   any colour of the scale and is ignored, so the masked source shows only
+ *   the ground (checked against PseudoCAPPI 2 km) are in full colour. The
+ *   rest is semi-transparent; blended against black it is darker than any
+ *   colour of the scale and is ignored, so the masked source shows only
  *   precipitation that really falls (no virga, no anvils of distant storms).
+ *   File names follow from the time (one frame every 5 minutes), so normally
+ *   the (300+ kB) directory listing is not downloaded at all – it is read
+ *   only as a fallback, and it teaches the exact file-name suffix.
  *   - one PNG every 5 minutes, maximum reflectivity (MAX Z) of the Czech
  *     radar network, Web Mercator, 1 km resolution
  *   - file names carry the UTC time: pacz2gmaps3.z_max3d.YYYYMMDD.HHMM.*.png
@@ -33,6 +36,11 @@ struct RainInfo {
 
 class PNG;
 
+/// Called by the radar sources between two frames, with no connection open:
+/// the network task uses it to keep the aircraft up to date during the long
+/// radar download.
+typedef void (*RadarIdleFn)();
+
 /// Returned by the fetch functions when the newest frame is the one we
 /// already have (nothing downloaded, the old frames stay valid).
 constexpr uint8_t RADAR_UNCHANGED = 0xFF;
@@ -45,14 +53,16 @@ namespace CHMU {
 
   /// Download the newest frames (oldest first) into grids.
   /// grids must hold maxFrames * RadarGrid::BYTES bytes.
-  /// masked: use the png_masked directory (only rain that reaches the ground).
   /// known: time stamp ("YYYYMMDDHHMM") of the newest frame already shown, or
   /// nullptr. When the newest frame on the server is the same, nothing is
   /// downloaded and RADAR_UNCHANGED is returned.
   /// Returns the number of frames decoded (0 = failure, grids untouched
   /// beyond the returned count). info describes the newest frame.
+  /// masked: use the png_masked directory (only rain that reaches the ground).
+  /// idle (optional) is called between frames.
   uint8_t fetch(uint8_t* grids, uint8_t maxFrames, bool masked, double homeLat, double homeLon,
-                float radiusKm, uint8_t minLevel, RainInfo* info, const char* known);
+                float radiusKm, uint8_t minLevel, RainInfo* info, const char* known,
+                RadarIdleFn idle = nullptr);
 
   /// The shared PNG decoder (also used by the RainViewer module).
   PNG* decoder();

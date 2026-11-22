@@ -9,6 +9,8 @@
  * whole map (Czech Republic + surroundings) is covered by 2x2 tiles, about
  * four tile pixels per panel pixel.
  *
+ * All tiles of one frame share one kept-alive HTTPS connection.
+ *
  * Every tile is decoded line by line while it downloads (PNGdec + the same
  * sliding window as the ČHMÚ images) straight into the 4-bit radar grid,
  * each panel pixel keeping the strongest echo. RainViewer colours
@@ -28,8 +30,10 @@ namespace RainViewer {
   /// Download the newest frames (oldest first) into grids, same contract as
   /// CHMU::fetch(). known = "YYYYMMDDHHMM" (UTC) of the newest frame already
   /// shown, or nullptr; returns RADAR_UNCHANGED when there is nothing new.
+  /// idle (optional) is called between frames, with no connection open.
   uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
-                float radiusKm, uint8_t minLevel, RainInfo* info, const char* known);
+                float radiusKm, uint8_t minLevel, RainInfo* info, const char* known,
+                RadarIdleFn idle = nullptr);
 
   /// RainViewer colour (RGB565, blended against black) -> level 0..15.
   /// Exposed for the host tests.

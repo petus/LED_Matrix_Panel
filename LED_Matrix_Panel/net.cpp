@@ -115,11 +115,13 @@ private:
 };
 
 // Shared request set-up. Returns the HTTP status code (<0 = transport error).
-int startGet(HTTPClient& http, WiFiClientSecure& client, const char* url, const char* tag) {
+// quiet404: a missing file is an expected answer (probing for radar frames).
+int startGet(HTTPClient& http, WiFiClientSecure& client, const char* url, const char* tag,
+             bool reuse = false, bool quiet404 = false) {
   client.setInsecure();                       // public data, no certificate pinning
   http.setConnectTimeout(HTTP_CONNECT_MS);
   http.setTimeout(HTTP_TIMEOUT_MS);
-  http.setReuse(false);
+  http.setReuse(reuse);
   if (!http.begin(client, url)) {
     DEBUG_LOG("NET", "%s: begin() failed", tag);
     return -1;
@@ -130,7 +132,7 @@ int startGet(HTTPClient& http, WiFiClientSecure& client, const char* url, const 
 
   const int code = http.GET();
   if (http.hasHeader("Date")) TimeSync::setFromHttpDate(http.header("Date").c_str());
-  if (code != HTTP_CODE_OK && code != 204) {
+  if (code != HTTP_CODE_OK && code != 204 && !(quiet404 && code == 404)) {
     DEBUG_LOG("NET", "%s: HTTP %d %s (free heap %lu B, largest block %lu B)", tag, code,
               code < 0 ? HTTPClient::errorToString(code).c_str() : "",
               (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
@@ -232,6 +234,79 @@ int32_t streamRead(void* stream, uint8_t* buf, int32_t len) {
   return got;
 }
 }  // namespace
+
+// Reads through a counter, so the rest of a body can be skipped afterwards
+// (a kept-alive connection must be at the start of the next answer).
+struct Counted {
+  Client* client;
+  long    got;
+};
+int32_t countedRead(void* stream, uint8_t* buf, int32_t len) {
+  Counted* c = static_cast<Counted*>(stream);
+  const int32_t n = streamRead(c->client, buf, len);
+  if (n > 0) c->got += n;
+  return n;
+}
+
+// Skip what the decoder did not read (PNG trailer). False when it fails.
+bool drain(Counted& c, long size) {
+  uint8_t tmp[256];
+  while (c.got < size) {
+    const int32_t want = (size - c.got) < (long)sizeof(tmp) ? (int32_t)(size - c.got) : (int32_t)sizeof(tmp);
+    if (countedRead(&c, tmp, want) <= 0) return false;
+  }
+  return true;
+}
+}  // namespace
+
+struct Net::Session {
+  WiFiClientSecure client;
+  HTTPClient       http;
+};
+
+namespace Net {
+
+Session* openSession() {
+  return new (std::nothrow) Session();
+}
+
+void closeSession(Session* s) {
+  if (!s) return;
+  s->http.setReuse(false);
+  s->http.end();
+  s->client.stop();
+  delete s;
+}
+
+int fetchStream(Session* s, const char* url, BodyFn fn, void* user, const char* tag) {
+  if (!connected()) return -1;
+  Session  local;
+  Session* ss = s ? s : &local;
+  HTTPClient& http = ss->http;
+  const bool reuse = (s != nullptr);
+
+  const int code = startGet(http, ss->client, url, tag, reuse, true);
+  if (code != HTTP_CODE_OK) {
+    // Do not keep a connection with an unread error page in it.
+    http.setReuse(false);
+    http.end();
+    return code;
+  }
+  const long size = http.getSize();
+  if (size <= 0) {                             // chunked: raw stream would contain chunk headers
+    DEBUG_LOG("NET", "%s: no Content-Length, cannot stream", tag);
+    http.setReuse(false);
+    http.end();
+    return FETCH_NO_LENGTH;
+  }
+  Client* stream = http.getStreamPtr();
+  if (!stream) { http.setReuse(false); http.end(); return -1; }
+  Counted cnt = { stream, 0 };
+  const bool ok = fn(countedRead, &cnt, size, user);
+  if (!ok || !drain(cnt, size)) http.setReuse(false);   // unknown state: close
+  http.end();                                  // with reuse the connection stays open
+  return ok ? FETCH_OK : FETCH_BODY_FAIL;
+}
 
 bool getStream(const char* url, BodyFn fn, void* user, const char* tag) {
   if (!connected()) return false;

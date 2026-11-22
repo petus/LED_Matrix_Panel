@@ -38,6 +38,10 @@ namespace Display {
 
   /// Latch blanking 1–8 (dark clock pulses around the row change), applied
   /// at once. Returns the value set. For tests from the serial console.
+  /// Drive strength of the HUB75 pins 0..3 (see config.h). Returns the value set.
+  uint8_t setDriveStrength(uint8_t level);
+  uint8_t driveStrength();
+
   uint8_t setLatchBlanking(uint8_t pulses);
   uint8_t latchBlanking();
 

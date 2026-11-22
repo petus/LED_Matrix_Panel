@@ -3,6 +3,7 @@
  * @brief   HUB75 panel initialisation, canvas and transfer (see display.h).
  */
 #include "display.h"
+#include <driver/gpio.h>
 #include "config.h"
 #include "debug.h"
 #include "colors.h"
@@ -12,6 +13,7 @@
 namespace {
   // Created in begin(), live for the whole program.
   MatrixPanel_I2S_DMA* s_panel      = nullptr;
+  uint8_t              s_drive      = PANEL_DRIVE_STRENGTH;
   GFXcanvas16*         s_canvas     = nullptr;   // what the screens draw
   uint16_t*            s_shown      = nullptr;   // what the panel shows now
   uint8_t              s_brightness = PANEL_BRIGHTNESS;
@@ -47,6 +49,24 @@ bool begin() {
   DEBUG_LOG("DISP", "Pins  A=%d B=%d C=%d D=%d E=%d  LAT=%d OE=%d CLK=%d",
             PIN_A, PIN_B, PIN_C, PIN_D, PIN_E, PIN_LAT, PIN_OE, PIN_CLK);
 
+#if PANEL_DISABLED
+  // Diagnostic build: the panel is never driven (no DMA, no clock on the
+  // HUB75 lines). Drawing still goes into the canvas, so nothing else changes.
+  // Static levels only (no clock): all lines low, OE high = LEDs off.
+  const int8_t lines[] = { PIN_R1, PIN_G1, PIN_B1, PIN_R2, PIN_G2, PIN_B2,
+                           PIN_A, PIN_B, PIN_C, PIN_D, PIN_E, PIN_LAT, PIN_CLK };
+  for (int8_t p : lines) { pinMode(p, OUTPUT); digitalWrite(p, LOW); }
+  pinMode(PIN_OE, OUTPUT);
+  digitalWrite(PIN_OE, HIGH);
+  (void)pins;
+  DEBUG_LOG("DISP", "PANEL_DISABLED: panel NOT driven (WiFi test build), lines static, OE high");
+  s_canvas = new GFXcanvas16(W, H);
+  s_shown  = (uint16_t*)calloc((size_t)W * H, sizeof(uint16_t));
+  if (!s_canvas || !s_canvas->getBuffer() || !s_shown) return false;
+  s_canvas->setTextWrap(false);
+  return true;
+#endif
+
   HUB75_I2S_CFG config(PANEL_WIDTH, PANEL_HEIGHT, PANEL_CHAIN, pins);
   config.double_buff      = false;              // see config.h: canvas + diff instead
   config.clkphase         = PANEL_CLK_PHASE;
@@ -80,6 +100,7 @@ bool begin() {
   s_canvas->setTextWrap(false);
 
   s_panel->clearScreen();                       // matches s_shown (all black)
+  setDriveStrength(PANEL_DRIVE_STRENGTH);       // after begin(): the library sets up the pins
   setBrightness(s_brightness);
   DEBUG_LOG("DISP", "Ready");
   return true;
@@ -101,7 +122,7 @@ void show() {
       const uint16_t c = src[i];
       if (c != s_shown[i]) {
         s_shown[i] = c;
-        s_panel->drawPixel(x, y, c);
+        if (s_panel) s_panel->drawPixel(x, y, c);
       }
     }
   }
@@ -124,7 +145,7 @@ void colourTest() {
 
 void setBrightness(uint8_t value) {
   s_brightness = value;
-  s_panel->setBrightness8(value);
+  if (s_panel) s_panel->setBrightness8(value);
   DEBUG_LOG("DISP", "Brightness %u", value);
 }
 
@@ -132,7 +153,24 @@ uint8_t brightness() {
   return s_brightness;
 }
 
+uint8_t setDriveStrength(uint8_t level) {
+  if (level > 3) level = 3;
+  s_drive = level;
+  if (!s_panel) return s_drive;
+  const int8_t pins[] = { PIN_R1, PIN_G1, PIN_B1, PIN_R2, PIN_G2, PIN_B2,
+                          PIN_A, PIN_B, PIN_C, PIN_D, PIN_E, PIN_LAT, PIN_OE, PIN_CLK };
+  for (int8_t p : pins) gpio_set_drive_capability((gpio_num_t)p, (gpio_drive_cap_t)level);
+  static const char* const MA[] = { "~5", "~10", "~20", "~40" };
+  DEBUG_LOG("DISP", "Pin drive strength %u (%s mA), panel clock %d MHz", level, MA[level], PANEL_I2S_MHZ);
+  return s_drive;
+}
+
+uint8_t driveStrength() {
+  return s_drive;
+}
+
 uint8_t setLatchBlanking(uint8_t pulses) {
+  if (!s_panel) return s_latch;
   s_latch = s_panel->setLatBlanking(pulses);
   s_panel->setBrightness8(s_brightness);        // the blanking is applied with the brightness
   DEBUG_LOG("DISP", "Latch blanking %u", (unsigned)s_latch);

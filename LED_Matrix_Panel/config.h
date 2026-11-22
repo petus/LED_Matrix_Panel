@@ -19,7 +19,7 @@
 //  Firmware identification
 // =============================================================================
 #define FW_NAME     "LED Matrix Panel"
-#define FW_VERSION  "1.0.0"
+#define FW_VERSION  "0.1.1"
 
 // =============================================================================
 //  Debug output (Serial Monitor)
@@ -68,10 +68,27 @@
 //   HUB75_I2S_CFG::TYPE138  – classic address lines A–E (V1 panels, most others)
 #define PANEL_LINE_DECODER  HUB75_I2S_CFG::SM5368
 
-// HUB75 clock and minimum refresh rate – the values of the Waveshare example,
-// the same as in the first test sketch (HUB75_Panel) that showed no flicker.
+// HUB75 clock and minimum refresh rate. 8 MHz instead of the 16 MHz of the
+// Waveshare example: half the edges on the panel wires, which with 16 MHz
+// disturbed WiFi (slow web page, phones dropping off the set-up network).
+#ifndef PANEL_I2S_MHZ                            // a build can set it: -DPANEL_I2S_MHZ=8
+#define PANEL_I2S_MHZ          8
+#endif
+#if PANEL_I2S_MHZ == 8
+#define PANEL_I2S_SPEED        HUB75_I2S_CFG::HZ_8M
+#else
 #define PANEL_I2S_SPEED        HUB75_I2S_CFG::HZ_16M
+#endif
 #define PANEL_MIN_REFRESH_HZ   240
+
+// Drive strength of the 14 HUB75 pins: 0 = ~5 mA, 1 = ~10 mA, 2 = ~20 mA
+// (chip default), 3 = ~40 mA. Weaker drive = slower edges = much less radio
+// interference from the panel wires – the panel drive disturbed WiFi (the
+// web page took 10 s instead of 0.2 s, phones dropped off the set-up network).
+// Too weak and the panel shows wrong pixels: try live with console key "d".
+#ifndef PANEL_DRIVE_STRENGTH
+#define PANEL_DRIVE_STRENGTH   1
+#endif
 
 // Dark clock pulses around each row change (1–8, 0 = library default 4).
 // Random flickering pixels at the panel edge: try other values live with
@@ -146,6 +163,22 @@
 // a power cut...), the access point is closed now and then for one more
 // attempt – only when no phone is connected to it.
 #define WIFI_AP_RETRY_MS         300000
+// Channel of the set-up network (1, 6 or 11 are seen by every phone).
+#define WIFI_AP_CHANNEL          1
+
+// Diagnostics: 1 = never start the panel driver (no DMA, pins stay inputs).
+// Everything else runs normally; shows whether the panel wiring disturbs WiFi.
+// A build can set it: -DPANEL_DISABLED=1
+#ifndef PANEL_DISABLED
+#define PANEL_DISABLED           0
+#endif
+// Transmit power of the set-up network. The phone is in the same room, and
+// full power (19.5 dBm) draws current peaks of ~350 mA that can pull the
+// board's 3.3 V down (brownout resets seen while a phone was on the AP).
+#define WIFI_AP_TX_POWER         WIFI_POWER_11dBm
+// Nobody joined the set-up network for this long: switch it off and on again
+// (a radio that stopped sending beacons comes back, MeteoPlaneRadar does the same).
+#define WIFI_AP_RESTART_MS       180000
 // After the home WiFi connects, the IP address is shown this long.
 #define IP_SCREEN_MS             10000
 

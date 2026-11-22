@@ -49,4 +49,22 @@ namespace Net {
   /// Returns fn's result, false on HTTP error or unknown length.
   bool getStream(const char* url, BodyFn fn, void* user, const char* tag);
 
+  /// One HTTPS connection kept open for several requests to the same host
+  /// (keep-alive): the TLS handshake – the slow and memory-hungry part – is
+  /// done once instead of for every radar tile / frame. Close it before
+  /// talking to another host, so two TLS sessions never need RAM at once.
+  struct Session;
+  Session* openSession();
+  void     closeSession(Session* s);         // nullptr is fine
+
+  /// Results of fetchStream() besides HTTP status codes
+  constexpr int FETCH_OK        = 200;
+  constexpr int FETCH_BODY_FAIL = -1000;     // fn returned false / data ended early
+  constexpr int FETCH_NO_LENGTH = -1001;     // answer without Content-Length
+
+  /// Like getStream(), but over a session (nullptr = a one-off connection)
+  /// and with the reason when it fails: FETCH_OK, an HTTP status such as 404,
+  /// a negative transport error, FETCH_BODY_FAIL or FETCH_NO_LENGTH.
+  int fetchStream(Session* s, const char* url, BodyFn fn, void* user, const char* tag);
+
 }  // namespace Net

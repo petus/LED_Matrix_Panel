@@ -21,6 +21,7 @@ void printHelp() {
   DEBUG_PRINTLN(F(" r       download radar now"));
   DEBUG_PRINTLN(F(" + / -   brightness up / down (until next change)"));
   DEBUG_PRINTLN(F(" l       latch blanking 1..8 (test against flicker)"));
+  DEBUG_PRINTLN(F(" d       pin drive strength 0..3 (test against WiFi trouble)"));
   DEBUG_PRINTLN(F(" i       system info"));
   DEBUG_PRINTLN(F(" h       this help"));
   DEBUG_PRINTLN(F("------------------------------------------"));
@@ -70,6 +71,7 @@ void update() {
       case '-': changeBrightness(-BRIGHTNESS_STEP); break;
       case 'i': printInfo();                        break;
       case 'l': Display::setLatchBlanking(Display::latchBlanking() % 8 + 1); break;
+      case 'd': Display::setDriveStrength((Display::driveStrength() + 1) % 4); break;
       case 'h': case '?': printHelp();              break;
       default:
         DEBUG_LOG("CONS", "Unknown command '%c', press h for help", c);

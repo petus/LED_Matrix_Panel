@@ -12,7 +12,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <PNGdec.h>
+#include "src/PNGdec/PNGdec.h"   // bundled copy, see the note there
 #include <math.h>
 #include <string.h>
 #include <time.h>
@@ -186,15 +186,27 @@ bool decodeTile(Net::ReadFn read, void* stream, long size, void* user) {
 }
 
 // One tile with a few retries – a lost tile would leave a hole in the map.
-bool fetchTile(const char* host, const char* path, int tx, int ty) {
+// All tiles of a frame go over one kept-alive connection (ss).
+bool fetchTile(Net::Session*& ss, const char* host, const char* path, int tx, int ty) {
   char url[200];
   snprintf(url, sizeof(url), "%s%s/%d/%d/%d/%d/%d/0_0.png", host, path, RV_TILE_SIZE, RV_ZOOM,
            tx, ty, RV_COLOR);
   for (uint8_t attempt = 0; attempt < 3; attempt++) {
-    if (attempt) vTaskDelay(pdMS_TO_TICKS(500));
+    if (attempt) {                                  // start over on a fresh connection
+      Net::closeSession(ss);
+      vTaskDelay(pdMS_TO_TICKS(500));
+      ss = Net::openSession();
+    }
     TileJob job;
-    if (Net::getStream(url, decodeTile, &job, "RV")) return true;
-    if (!job.started) {
+    const int code = Net::fetchStream(ss, url, decodeTile, &job, "RV");
+    if (code == Net::FETCH_OK) return true;
+    if (code == 404) {                              // no tile = no data there
+      DEBUG_LOG("RV", "Tile %d/%d: 404, left empty", tx, ty);
+      return true;
+    }
+    if (code == Net::FETCH_NO_LENGTH) {
+      Net::closeSession(ss);
+      ss = Net::openSession();
       // No Content-Length: download into RAM and decode from there.
       uint8_t* buf = nullptr;
       const long len = Net::getToBuffer(url, &buf, 96 * 1024, "RV");
@@ -241,7 +253,8 @@ uint8_t colorToLevel(uint16_t c) {
 }
 
 uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
-              float radiusKm, uint8_t minLevel, RainInfo* info, const char* known) {
+              float radiusKm, uint8_t minLevel, RainInfo* info, const char* known,
+              RadarIdleFn idle) {
   PNG* png = CHMU::decoder();
   if (!png) return 0;
   if (maxFrames > MAX_FRAMES) maxFrames = MAX_FRAMES;
@@ -302,7 +315,11 @@ uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
   const float kmPerDegLon = 111.32f * cosf((float)homeLat * 0.017453293f);
   RainInfo newest;
   uint8_t done = 0;
+  Net::Session* ss = nullptr;
   for (int f = 0; f < take; f++) {
+    // Between frames: no connection open, the aircraft get their turn.
+    if (f > 0 && idle) { Net::closeSession(ss); ss = nullptr; idle(); }
+    if (!ss) ss = Net::openSession();
     const bool isNewest = (f == take - 1);
     uint8_t* grid = grids + done * RadarGrid::BYTES;
     memset(grid, 0, RadarGrid::BYTES);
@@ -321,7 +338,7 @@ uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
           c.colPx[sx] = (px >= 0 && px < RadarMap::WIDTH) ? px : -1;
           c.colKm[sx] = (float)(worldToLon(wx) - homeLon) * kmPerDegLon;
         }
-        ok = fetchTile(host, paths[f], tx, ty);
+        ok = ss && fetchTile(ss, host, paths[f], tx, ty);
         rainPx += c.rainPx;
       }
     }
@@ -333,6 +350,7 @@ uint8_t fetch(uint8_t* grids, uint8_t maxFrames, double homeLat, double homeLon,
               (unsigned long)rainPx);
     done++;
   }
+  Net::closeSession(ss);
   free(line);
   free(s_ctx);
   s_ctx = nullptr;
