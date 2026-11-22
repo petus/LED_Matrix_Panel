@@ -39,6 +39,8 @@ Zdroj radaru (web, záložka Radar):
 
 Všechny zdroje končí ve stejné 4bitové mřížce s úrovněmi ČHMÚ (4 až 60 dBZ), takže mapa, legenda
 i práh deště fungují stejně. Snímek, který panel už má, se znovu nestahuje.
+U kompozitu masked se počítají jen úplně neprůhledné body (poloprůhledné jsou odrazy, které
+nedopadnou na zem).
 
 Jazyk: čeština nebo angličtina pro texty na panelu i webovou stránku (Systém → Jazyk / Language).
 
@@ -129,6 +131,13 @@ Piny D a E panel nepoužívá (jejich zapojení ničemu nevadí).
 **GND ESP32 vždy propojte s GND zdroje panelu.**
 Piny jde změnit v `config.h`.
 
+**Vodiče mezi ESP32 a panelem držte co nejkratší.** Panel se budí rychlými signály po 14 vodičích.
+U dlouhých vodičů (volné drátky, desítky centimetrů) fungují jako anténa: mohou rušit WiFi
+(pomalá webová stránka, timeouty, telefon padá z nastavovací sítě) a LED mohou problikávat.
+Firmware proto budí panel na 8 MHz a se sníženou silou budičů pinů
+(`PANEL_I2S_MHZ` a `PANEL_DRIVE_STRENGTH` v `config.h`). Pokud potíže přetrvávají, vodiče zkraťte,
+veďte je dál od antény ESP32 a použijte plochý kabel se zemí.
+
 Záměrně vynechané: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
 43/44 (UART), 2/42 (µŠup I²C), 47 (napájení µŠup), 9 (ADC baterie), 35 až 37 (octal PSRAM).
 
@@ -138,12 +147,14 @@ Záměrně vynechané: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
 2. Library Manager:
    - **ESP32 HUB75 LED MATRIX PANEL DMA Display** (od mrcodetastic, **v3.1.0 nebo novější**, podpora SM5368),
      Adafruit GFX se nainstaluje jako závislost
-   - **PNGdec** (od Larry Bank): radarové snímky
    - **ArduinoJson** (od Benoit Blanchon, v7): data o letadlech, webové API
 3. Deska **ESP32S3 Dev Module**, *Tools*:
    - **PSRAM** podle modulu: *OPI* (…R8), *QSPI* (…R2), *Disabled*, když žádnou nemá
    - **Flash Size: 16MB (128Mb)**
    - **Partition Scheme: 16M Flash (3MB APP/9.9MB FATFS)**: dva sloty pro aplikaci, aby fungovala aktualizace přes web
+   PNGdec (radarové snímky) z Library Manageru **není** potřeba: verze 1.1.7 je přibalená ve složce
+   `src/PNGdec` s větší vyrovnávací pamětí řádku (5508 B). Snímky ČHMÚ mají šířku 680 px, masked
+   jsou RGBA a do výchozí velikosti se nevejde ani jedno. Nainstalovaná knihovna PNGdec se nepoužije.
 4. Žádný `build_opt.h`, knihovny běží s výchozím nastavením. Pokud ve složce sketche
    zůstal `build_opt.h` ze starší verze projektu, smažte ho **i** cache překladu
    (složka `arduino/sketches` v systémové složce temp, ve Windows `%LOCALAPPDATA%\Temp`).
@@ -174,6 +185,7 @@ adsb.h/.cpp       nejbližší letadlo z adsb.fi + počet v okruhu
 chmu.h/.cpp       radar ČHMÚ (obyčejný / masked): výpis adresáře, stažení PNG, dekódování
 rainviewer.h/.cpp radar RainViewer: index JSON, dlaždice, převod barev na dBZ
 png_stream.h      plní PNGdec přímo z HTTPS proudu (posuvné okno)
+src/PNGdec/       PNGdec 1.1.7 (bitbank2, Apache 2.0), přibalený s větší pamětí řádku
 forecast.h/.cpp   Open-Meteo: počasí teď, dnes, zítra
 weather_icons.h/.cpp  ikony počasí 16x16 kreslené primitivy GFX
 radar_palette.h   barevná stupnice ČHMÚ, 4bitová mřížka radaru (2304 B / snímek)
@@ -193,8 +205,12 @@ Jak to funguje:
   do plátna v RAM a do DMA bufferu panelu se zapíšou jen pixely, které se liší.
 - **Síťová úloha** (jádro 0): ptá se adsb.fi každých pár sekund, ČHMÚ každých 5 minut a Open-Meteo každých 15 minut,
   výsledky publikuje do `SkyData`. Stahování nikdy neblokuje displej ani webovou stránku.
-- **Radar**: výpis adresáře se prochází jako proud a hledají se v něm názvy nejnovějších souborů.
-  Každé PNG se dekóduje po řádcích *už během stahování* (posuvné okno 4 kB,
+  Mezi dvěma snímky radaru se znovu zeptá na letadla, takže jsou aktuální i během stahování radaru.
+  Úsporný režim WiFi je vypnutý (velká stahování zpomaloval na pár kB/s).
+- **Radar**: názvy souborů ČHMÚ vyplývají z času (snímek každých 5 minut), takže se panel ptá na
+  nejnovější možný snímek a jde zpět, dokud nějaký nenajde. Výpis adresáře (přes 300 kB) se čte jen
+  jako záloha (hodiny ještě nejdou, nečekané názvy). Všechny snímky ČHMÚ i všechny dlaždice jednoho
+  snímku RainVieweru jdou přes jedno udržované HTTPS spojení. Každé PNG se dekóduje po řádcích *už během stahování* (posuvné okno 4 kB,
   žádný buffer pro celý soubor) rovnou do mřížky 96×48. Každý
   pixel panelu si ponechá nejsilnější ozvěnu z oblasti, kterou pokrývá. Na nejnovějším snímku
   se navíc kontroluje déšť v okruhu.
@@ -220,7 +236,8 @@ Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout 
 | Špatné barvy (bílé ručičky vypadají modře, chybí tmavé barvy) | zapomenutý `build_opt.h` ze starší verze, smažte ho i cache překladu, viz *Software* krok 4 |
 | Svítí celé řádky / pruhy | `PANEL_LINE_DECODER` (96x48-F V2 = `SM5368`, V1 = `TYPE138`) |
 | V logu při startu „PSRAM chip is not connected“ | nastavte *Tools → PSRAM* podle modulu (nebo Disabled) |
-| Sousední LED pobliká / svítí | zkontrolujte GND panelu, krátký plochý kabel a zdroj 5 V; `PANEL_I2S_SPEED HZ_8M` v `config.h` |
+| Sousední LED pobliká / svítí | zkontrolujte GND panelu, krátký plochý kabel a zdroj 5 V; dlouhé vodiče to zhoršují (viz *Zapojení*) |
+| Pomalá webová stránka, timeouty, telefon padá z nastavovací sítě | rušení z vodičů panelu: zkraťte je, veďte je dál od antény; `PANEL_DRIVE_STRENGTH` / `PANEL_I2S_MHZ` v `config.h` (klávesa `d` v konzoli zkouší sílu budičů za běhu) |
 | `HTTP -1 connection refused` u každého dotazu | obvykle málo RAM pro TLS; řádek v logu ukazuje největší volný blok (TLS potřebuje dva bloky po ~17 kB); méně snímků radaru |
 | Webová stránka nejde otevřít | zkontrolujte adresu zobrazenou po startu; `http://ledmatrix.local` potřebuje mDNS (funguje na většině telefonů a počítačů) |
 | ESP32 se restartuje při vysokém jasu | silnější zdroj 5 V, nižší jas ve webovém rozhraní |
@@ -234,3 +251,4 @@ Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout 
 - Mapa: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Vyhledání obce: [geokódování Open-Meteo](https://open-meteo.com) (v prohlížeči)
 - QR kód: ricmoo/QRCode (MIT)
+- Dekodér PNG: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 od Larry Banka (Apache 2.0), přibalený ve `src/PNGdec`

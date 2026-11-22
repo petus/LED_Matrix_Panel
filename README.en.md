@@ -1,6 +1,6 @@
 # LED Matrix Panel
 
-*English · [Česky](README.md)*
+*English · [Česky](README.cs.md)*
 
 Clock, nearby aircraft and ČHMÚ precipitation radar on a
 **Waveshare RGB LED matrix 96×48, P2.5 (HUB75)** driven by the
@@ -39,6 +39,8 @@ Radar source (web, Radar tab):
 
 All sources end up in the same 4-bit grid with the ČHMÚ levels (4–60 dBZ), so the map, the legend
 and the rain threshold work the same. A frame already shown is not downloaded again.
+In the masked composite only fully opaque pixels count (the semi-transparent ones are echoes
+that do not reach the ground).
 
 Language: Czech or English for the panel texts and the web page (Systém → Jazyk / Language).
 
@@ -129,6 +131,13 @@ D and E are not used by the panel (wiring them does no harm).
 **Always connect GND of the ESP32 to GND of the panel power supply.**
 Pins can be changed in `config.h`.
 
+**Keep the wires between the ESP32 and the panel short.** The panel is driven by fast signals on 14 wires.
+With long wires (loose jumper wires, tens of centimetres) they act as an antenna: they can disturb the WiFi
+(slow web page, timeouts, the phone dropping off the set-up network) and the LEDs can flicker.
+The firmware therefore drives the panel at 8 MHz and with reduced pin drive strength
+(`PANEL_I2S_MHZ` and `PANEL_DRIVE_STRENGTH` in `config.h`). If problems persist, shorten the wires,
+route them away from the ESP32 antenna and use a flat ribbon cable with GND.
+
 Avoided on purpose: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
 43/44 (UART), 2/42 (µŠup I²C), 47 (µŠup power), 9 (battery ADC), 35–37 (octal PSRAM).
 
@@ -138,12 +147,14 @@ Avoided on purpose: 0, 3, 45, 46 (strapping), 45 (RGB LED), 19/20 (USB),
 2. Library Manager:
    - **ESP32 HUB75 LED MATRIX PANEL DMA Display** (by mrcodetastic, **v3.1.0 or newer** – SM5368 support),
      Adafruit GFX is installed as a dependency
-   - **PNGdec** (by Larry Bank) – radar images
    - **ArduinoJson** (by Benoit Blanchon, v7) – aircraft data, web API
 3. Board **ESP32S3 Dev Module**, *Tools*:
    - **PSRAM** – match the module: *OPI* (…R8), *QSPI* (…R2), *Disabled* when there is none
    - **Flash Size: 16MB (128Mb)**
    - **Partition Scheme: 16M Flash (3MB APP/9.9MB FATFS)** – two app slots, so the web update works
+   PNGdec (radar images) is **not** needed from the Library Manager: version 1.1.7 is bundled in
+   `src/PNGdec` with a larger line buffer (5508 B) – the ČHMÚ images are 680 px wide, the masked ones
+   RGBA, and the library default fits neither. An installed PNGdec library is not used.
 4. No `build_opt.h` – the libraries run with their default settings. If an older version
    of this project left a `build_opt.h` in the sketch folder, delete it **and** the build cache
    (folder `arduino/sketches` in the system temp folder, Windows `%LOCALAPPDATA%\Temp`).
@@ -174,6 +185,7 @@ adsb.h/.cpp       nearest aircraft from adsb.fi + count in range
 chmu.h/.cpp       ČHMÚ radar (plain / masked): directory index, PNG download, decoding
 rainviewer.h/.cpp RainViewer radar: index JSON, tiles, colour -> dBZ
 png_stream.h      feeds PNGdec straight from the HTTPS stream (sliding window)
+src/PNGdec/       PNGdec 1.1.7 (bitbank2, Apache 2.0), bundled with a larger line buffer
 forecast.h/.cpp   Open-Meteo: weather now, today, tomorrow
 weather_icons.h/.cpp  16x16 weather icons drawn with GFX primitives
 radar_palette.h   ČHMÚ colour scale, 4-bit radar grid (2304 B / frame)
@@ -193,8 +205,12 @@ How it works:
   into a canvas in RAM and only the pixels that differ are written to the panel's DMA buffer.
 - **Network task** (core 0): asks adsb.fi every few seconds, ČHMÚ every 5 minutes and Open-Meteo every 15 minutes,
   publishes results into `SkyData`. Downloads never block the display or the web page.
-- **Radar**: the directory listing is scanned as a stream for the newest file names,
-  each PNG is decoded line by line *while it downloads* (a 4 kB sliding window,
+  Between two radar frames the aircraft are polled again, so they stay current during
+  the radar download. WiFi power saving is off (it slowed large downloads to a few kB/s).
+- **Radar**: ČHMÚ file names follow from the time (one frame every 5 minutes), so the panel asks
+  for the newest possible frame and steps back until one exists – the 300+ kB directory listing
+  is read only as a fallback (clock not set yet, unexpected names). All frames of ČHMÚ and all
+  tiles of a RainViewer frame share one kept-alive HTTPS connection. Each PNG is decoded line by line *while it downloads* (a 4 kB sliding window,
   no buffer for the whole file) straight into a 96×48 grid; every
   panel pixel keeps the strongest echo of the area it covers. The newest frame is
   also checked for rain within the radius.
@@ -220,7 +236,8 @@ Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download rada
 | Wrong colours (white clock hands look blue, dark colours missing) | a stale `build_opt.h` from an older version – delete it and the build cache, see *Software* step 4 |
 | Whole rows lit / stripes | `PANEL_LINE_DECODER` (96x48-F V2 = `SM5368`, V1 = `TYPE138`) |
 | Boot log "PSRAM chip is not connected" | set *Tools → PSRAM* to match the module (or Disabled) |
-| Neighbouring LEDs glow / flicker | check the panel GND, a short ribbon cable and the 5 V supply; `PANEL_I2S_SPEED HZ_8M` in `config.h` |
+| Neighbouring LEDs glow / flicker | check the panel GND, a short ribbon cable and the 5 V supply; long wires make it worse (see *Wiring*) |
+| Slow web page, timeouts, phone drops off the set-up network | interference from the panel wires: shorten them, keep them away from the antenna; `PANEL_DRIVE_STRENGTH` / `PANEL_I2S_MHZ` in `config.h` (console key `d` tries the drive strength live) |
 | `HTTP -1 connection refused` for every request | usually too little RAM for TLS – the log line shows the largest free block (TLS needs two ~17 kB blocks); fewer radar frames |
 | Web page not reachable | check the address shown after start; `http://ledmatrix.local` needs mDNS (works on most phones and PCs) |
 | ESP32 resets at high brightness | stronger 5 V supply, lower brightness in the web interface |
@@ -234,3 +251,4 @@ Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download rada
 - Map: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Town search: [Open-Meteo geocoding](https://open-meteo.com) (in the browser)
 - QR code: ricmoo/QRCode (MIT)
+- PNG decoder: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 by Larry Bank (Apache 2.0), bundled in `src/PNGdec`
