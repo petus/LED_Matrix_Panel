@@ -46,8 +46,8 @@ Language: Czech or English for the panel texts and the web page (Systém → Jaz
 
 ## Ready-made firmware
 
-No Arduino IDE needed: flash a file from the `bin` folder from offset **0x0**,
-e.g. in Chrome / Edge with [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
+No Arduino IDE needed: flash a file from [Releases](https://github.com/petus/LED_Matrix_Panel/releases) from offset **0x0**,
+e.g. in Chrome, Edge or Firefox 151+ with [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
 
 | File | Use |
 |------|-----|
@@ -244,6 +244,7 @@ Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download rada
 
 ## Data and licences
 
+- Project code: **MIT** licence, © 2026 Petr Šrámek ([chiptron.cz](https://chiptron.cz)), see [`LICENSE`](LICENSE). Bundled third-party code keeps its own licence (below).
 - Aircraft: [adsb.fi](https://adsb.fi) open data (non-commercial use)
 - Radar: [ČHMÚ open data](https://opendata.chmi.cz) (MAX Z composite, `png` / `png_masked`)
 - Radar: [RainViewer](https://www.rainviewer.com/api.html) (personal / non-commercial use, max. 100 requests/min)
@@ -251,4 +252,5 @@ Console (115200 baud): `m` screen mode AUTO/CLOCK/PLANE/RADAR, `r` download rada
 - Map: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Town search: [Open-Meteo geocoding](https://open-meteo.com) (in the browser)
 - QR code: ricmoo/QRCode (MIT)
-- PNG decoder: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 by Larry Bank (Apache 2.0), bundled in `src/PNGdec`
+- PNG decoder: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 by Larry Bank (Apache 2.0), bundled in `src/PNGdec` (contains zlib, zlib licence); the changes are described in `PNGdec.h` and `PNGdec.cpp`
+- Libraries in the firmware: [ESP32-HUB75-MatrixPanel-DMA](https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA) (MIT), [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library) (BSD), [ArduinoJson](https://arduinojson.org) (MIT), Arduino core for ESP32 (LGPL 2.1 / Apache 2.0)

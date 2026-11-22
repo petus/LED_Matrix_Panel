@@ -46,8 +46,8 @@ Jazyk: čeština nebo angličtina pro texty na panelu i webovou stránku (Systé
 
 ## Hotový firmware
 
-Arduino IDE není potřeba: soubor ze složky `bin` nahrajte od adresy **0x0**,
-např. v Chromu / Edge přes [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
+Arduino IDE není potřeba: soubor z [Releases](https://github.com/petus/LED_Matrix_Panel/releases) nahrajte od adresy **0x0**,
+např. v Chromu, Edge nebo Firefoxu 151+ přes [esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz).
 
 | Soubor | Použití |
 |--------|---------|
@@ -244,6 +244,7 @@ Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout 
 
 ## Data a licence
 
+- Kód projektu: licence **MIT**, © 2026 Petr Šrámek ([chiptron.cz](https://chiptron.cz)), viz [`LICENSE`](LICENSE). Přibalený kód třetích stran má vlastní licenci (níže).
 - Letadla: otevřená data [adsb.fi](https://adsb.fi) (nekomerční použití)
 - Radar: [otevřená data ČHMÚ](https://opendata.chmi.cz) (kompozit MAX Z, `png` / `png_masked`)
 - Radar: [RainViewer](https://www.rainviewer.com/api.html) (osobní / nekomerční použití, max. 100 dotazů za minutu)
@@ -251,4 +252,5 @@ Konzole (115200 Bd): `m` režim obrazovky AUTO/CLOCK/PLANE/RADAR, `r` stáhnout 
 - Mapa: [Natural Earth](https://www.naturalearthdata.com) (public domain)
 - Vyhledání obce: [geokódování Open-Meteo](https://open-meteo.com) (v prohlížeči)
 - QR kód: ricmoo/QRCode (MIT)
-- Dekodér PNG: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 od Larry Banka (Apache 2.0), přibalený ve `src/PNGdec`
+- Dekodér PNG: [PNGdec](https://github.com/bitbank2/PNGdec) 1.1.7 od Larry Banka (Apache 2.0), přibalený ve `src/PNGdec` (obsahuje zlib, licence zlib); úpravy jsou popsané přímo v `PNGdec.h` a `PNGdec.cpp`
+- Knihovny ve firmwaru: [ESP32-HUB75-MatrixPanel-DMA](https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA) (MIT), [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library) (BSD), [ArduinoJson](https://arduinojson.org) (MIT), Arduino core pro ESP32 (LGPL 2.1 / Apache 2.0)
